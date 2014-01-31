@@ -31,13 +31,24 @@ namespace KinectBats
         CoordinateMapper cm;
 
         Texture2D marker;
+        Texture2D marker2;
+        Texture2D pixel;
 
-        ColorImagePoint headColorPoint;
-        ColorImagePoint leftColorPoint;
-        ColorImagePoint rightColorPoint;
+        ColorImagePoint leftHandPoint;
+        ColorImagePoint leftElbowPoint;
+        bool leftTracked = false;
+
+        ColorImagePoint rightHandPoint;
+        ColorImagePoint rightElbowPoint;
+        bool rightTracked = false;
+
+        Line l;
 
         const DepthImageFormat depthFormat = DepthImageFormat.Resolution320x240Fps30;
         const ColorImageFormat colorFormat = ColorImageFormat.RgbResolution640x480Fps30;
+
+        VertexPositionColor[] vertices;
+        BasicEffect basicEffect;
 
         public KinectBats()
         {
@@ -87,7 +98,43 @@ namespace KinectBats
 
             base.Initialize();
 
+            l = new Line(new Vector2(0, 0), new Vector2(100, 100), 20, Color.Black, pixel);
+        }
 
+        Skeleton[] GetPlayerSkeletons(AllFramesReadyEventArgs e)
+        {
+            using (SkeletonFrame frame = e.OpenSkeletonFrame())
+            {
+                Skeleton[] trackedSkeletons = new Skeleton[2];
+
+                if (frame == null)
+                {
+                    return trackedSkeletons;
+                }
+
+                frame.CopySkeletonDataTo(allSkeletons);
+
+                //(Skeleton[])(from s in allSkeletons where s.TrackingState == SkeletonTrackingState.Tracked);
+                var firstFound = false;
+
+                for (int i = 0; i < skeletonCount; i++)
+                {
+                    if (allSkeletons[i].TrackingState == SkeletonTrackingState.Tracked)
+                    {
+                        if (!firstFound)
+                        {
+                            trackedSkeletons[0] = allSkeletons[i];
+                            firstFound = true;
+                        }
+                        else
+                        {
+                            trackedSkeletons[1] = allSkeletons[i];
+                        }
+                    }
+                }
+
+                return trackedSkeletons;
+            }
         }
 
         private byte[] ConvertDepthFrame(short[] depthFrame, DepthImageStream depthStream)
@@ -121,10 +168,24 @@ namespace KinectBats
             }
 
             kinect_ColorFrameReady(sender, imageFrames);
-            Skeleton s = GetFirstSkeleton(imageFrames);
-            if (s != null)
+            Skeleton[] skeletons = GetPlayerSkeletons(imageFrames);
+
+            if (skeletons[0] != null)
             {
-                GetCameraPoint(s, imageFrames);
+                UpdateSkeleton(skeletons[0], imageFrames, 0);
+            }
+            else
+            {
+                leftTracked = false;
+            }
+
+            if (skeletons[1] != null)
+            {
+                UpdateSkeleton(skeletons[1], imageFrames, 1);
+            }
+            else
+            {
+                rightTracked = false;
             }
         }
 
@@ -159,7 +220,7 @@ namespace KinectBats
             
         }
 
-        void GetCameraPoint(Skeleton s, AllFramesReadyEventArgs e)
+        void UpdateSkeleton(Skeleton s, AllFramesReadyEventArgs e, int index)
         {
             using (DepthImageFrame depth = e.OpenDepthImageFrame())
             {
@@ -168,33 +229,28 @@ namespace KinectBats
                     return;
                 }
 
-                //DepthImagePoint headDepthPoint = depth.MapFromSkeletonPoint(s.Joints[JointType.Head].Position);
-                //DepthImagePoint headDepthPoint = cm.MapDepthPointToColorPoint(s.Joints[JointType.Head].Position, );
-                
-                DepthImagePoint headDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[JointType.Head].Position, depthFormat);
-                DepthImagePoint leftDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[JointType.HandLeft].Position, depthFormat);
-                DepthImagePoint rightDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[JointType.HandRight].Position, depthFormat);
-
-                headColorPoint = cm.MapDepthPointToColorPoint(depthFormat, headDepthPoint, colorFormat);
-                leftColorPoint = cm.MapDepthPointToColorPoint(depthFormat, leftDepthPoint, colorFormat);
-                rightColorPoint = cm.MapDepthPointToColorPoint(depthFormat, rightDepthPoint, colorFormat);
-            }
-        }
-
-        Skeleton GetFirstSkeleton(AllFramesReadyEventArgs e)
-        {
-            using (SkeletonFrame frame = e.OpenSkeletonFrame())
-            {
-                if (frame == null)
+                bool tracked = true;
+                if ((s.Joints[JointType.HandLeft].TrackingState != JointTrackingState.Tracked) || (s.Joints[JointType.HandLeft].TrackingState != JointTrackingState.Tracked))
                 {
-                    return null;
+                    tracked = false;
+                    Console.WriteLine(tracked);
+                    
                 }
 
-                frame.CopySkeletonDataTo(allSkeletons);
+                DepthImagePoint leftHandDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[JointType.HandLeft].Position, depthFormat);
+                DepthImagePoint leftElbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[JointType.ElbowLeft].Position, depthFormat);
 
-                Skeleton first = (from s in allSkeletons where s.TrackingState == SkeletonTrackingState.Tracked select s).FirstOrDefault();
-                Console.WriteLine(first);
-                return first;
+                if (index == 0)
+                {
+                    leftHandPoint = cm.MapDepthPointToColorPoint(depthFormat, leftHandDepthPoint, colorFormat);
+                    leftElbowPoint = cm.MapDepthPointToColorPoint(depthFormat, leftElbowDepthPoint, colorFormat);
+                    leftTracked = tracked;
+                }
+                else {
+                    rightHandPoint = cm.MapDepthPointToColorPoint(depthFormat, leftHandDepthPoint, colorFormat);
+                    rightElbowPoint = cm.MapDepthPointToColorPoint(depthFormat, leftElbowDepthPoint, colorFormat);
+                    rightTracked = tracked;
+                }
             }
         }
 
@@ -208,7 +264,10 @@ namespace KinectBats
             spriteBatch = new SpriteBatch(GraphicsDevice);
 
             // TODO: use this.Content to load your game content here
+            pixel = this.Content.Load<Texture2D>("pixel");
             marker = this.Content.Load<Texture2D>("marker");
+            marker2 = this.Content.Load<Texture2D>("marker2");
+
         }
 
         /// <summary>
@@ -231,7 +290,7 @@ namespace KinectBats
             if ((Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.Escape)) || (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed))
                 this.Exit();
 
-            // TODO: Add your update logic here
+            l.Update(gameTime);
 
             base.Update(gameTime);
 
@@ -246,14 +305,35 @@ namespace KinectBats
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
+            spriteBatch.Begin();
+
             // Draw RGB video
             if (colorVideo != null)
             {
-                spriteBatch.Begin();
                 spriteBatch.Draw(colorVideo, new Rectangle(0, 0, 640, 480), Color.White);
-                spriteBatch.Draw(marker, new Rectangle(headColorPoint.X, headColorPoint.Y, 32, 32), Color.White);
-                spriteBatch.End();
             }
+
+            if (leftTracked)
+            {
+                l.p1.X = leftHandPoint.X;
+                l.p1.Y = leftHandPoint.Y;
+                l.p2.X = leftElbowPoint.X;
+                l.p2.Y = leftElbowPoint.Y;
+                l.Draw(spriteBatch);
+                
+                spriteBatch.Draw(marker, new Rectangle(leftHandPoint.X - 16, leftHandPoint.Y - 16, 32, 32), Color.White);
+                spriteBatch.Draw(marker, new Rectangle(leftElbowPoint.X - 16, leftElbowPoint.Y - 16, 32, 32), Color.White);
+            }
+
+            if (rightTracked)
+            {
+                spriteBatch.Draw(marker2, new Rectangle(rightHandPoint.X - 16, rightHandPoint.Y - 16, 32, 32), Color.White);
+                spriteBatch.Draw(marker2, new Rectangle(rightElbowPoint.X - 16, rightElbowPoint.Y - 16, 32, 32), Color.White);
+            }
+
+            
+
+            spriteBatch.End();
 
             base.Draw(gameTime);
         }
