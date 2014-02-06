@@ -51,45 +51,6 @@ def get_component_prices(fake=False):
     
     return prices
 
-def get_manufacturing_requirements(fake=False):
-    markets_url = "http://www.eve-markets.net/detail.php?typeid=%s#industry" % type_id
-    market_data = None
-
-    if fake:
-        markets_url = "data//Raven.htm"
-        f = open(markets_url, 'r')
-        market_data = f.read()
-        f.close()
-    else:
-        print "Downloading " + markets_url
-        r  = requests.get(markets_url)
-        market_data = r.text
-        print "Done"
-        
-    market_soup = BeautifulSoup(market_data)
-    manufacturing_requirements = {}
-
-    markets_url = "http://www.eve-markets.net/detail.php?typeid=%s#industry" % type_id
-    
-    for div in market_soup.find_all('div'):
-        for c in div.contents:
-            if c.name == 'h4' and c.string == 'Manufacturing':
-                dl = div.find_all('dl')[0]
-                for dt in dl.find_all('dt'):
-                    spans = dt.find_all('span')
-                    name_span = spans[0]
-                    amount_span = spans[1]
-                    
-                    component_name = name_span.find_all('a')[0].string
-                    component_url = name_span.find_all('a')[0].get('href') + "#industry"
-                    amount = int(amount_span.string)
-                    
-                    manufacturing_requirements[component_name] = {}
-                    manufacturing_requirements[component_name]['amount'] = amount
-                    manufacturing_requirements[component_name]['url'] = component_url
-    
-    return manufacturing_requirements
-
 def calculate_manufacturing_cost(manufacturing_requirements, component_prices):
     cost = 0
     for requirement in manufacturing_requirements:
