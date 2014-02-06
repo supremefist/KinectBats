@@ -159,10 +159,7 @@ class ManufacturingRequirements(object):
             #market_data = get_page_data(markets_url)
             
             self.save_page(cache_filename, market_data)
-            print "Done"
-            print "Sleeping for politeness..."
             time.sleep(1)
-            print "Waking up!"
 
         else:
             print "Using cache: " + cache_filename
@@ -255,9 +252,10 @@ if __name__ == "__main__":
             if type_id_to_check not in m.requirements or force:
                 try:
                     if m.add_manufacturing_requirements(type_id_to_check):
-                        print "Added: " + str(type_id_to_check)
+                        print "Added: " + m.requirements[type_id_to_check].name
                     else:
-                        print str(type_id_to_check) + " doesn't exist..."
+                        #print str(type_id_to_check) + " doesn't exist..."
+                        pass
                 except requests.exceptions.RequestException, e:
                     print "Request HTTP Error: " + str(e)
                 

@@ -1,4 +1,5 @@
 bin
 obj
 pages
+*.pyc
 requirements.txt*
