@@ -10,6 +10,7 @@ from httplib import HTTPConnection
 
 from multiprocessing import Process
 from multiprocessing.managers import SyncManager
+from downloader import Downloader
 
 def get_typeid_from_url(url):
     m = re.match(".*typeid=(\d+).*", url)
@@ -28,10 +29,6 @@ class Component(object):
     def __str__(self):
         return "Component (" + self.name + "|" + str(self.type_id) + "): amount -> " + str(self.amount)
 
-def get_page_data(url, return_dict):
-    r = requests.get(url)
-    return_dict['page'] = r.text
-
 
 class ManufacturingRequirements(object):
     """
@@ -45,14 +42,12 @@ class ManufacturingRequirements(object):
     }
     """
     def __init__(self):
+        self.d = Downloader()
+        
         self.requirements_filename = "requirements.txt"
         self._clear()
         
         self.job = None
-        
-        self.manager = SyncManager()
-        self.manager.start()
-        
         
     def _clear(self):
         self.requirements = {}
@@ -135,7 +130,7 @@ class ManufacturingRequirements(object):
             os.mkdir(os.path.dirname(page_filename))
             
         f = open(page_filename, 'w')
-        f.write(market_data)
+        f.write(market_data.encode('utf8'))
         f.close()
     
     def get_full_requirements_dict(self, type_id):
@@ -185,44 +180,6 @@ class ManufacturingRequirements(object):
         cache_filename = os.path.join(subdir, str(type_id) + ".htm")
         return cache_filename
     
-    def retry_fetch_market_data(self, markets_url, cache_filename):
-        market_data = self.fetch_market_data(markets_url, cache_filename)
-        
-        retries = 1
-        while not market_data and retries < 100:
-            print "Retry #%s..." % str(retries)
-            market_data = self.fetch_market_data(markets_url, cache_filename)
-            if market_data:
-                print "Fetched: " + str(len(market_data))
-            else:
-                print "Fetched nothing!"
-            retries += 1
-        
-        return market_data
-    
-    def fetch_market_data(self, markets_url, cache_filename):
-        print "Downloading " + markets_url
-            
-        return_dict = self.manager.dict()
-        self.job = Process(target=get_page_data, args=(markets_url, return_dict))
-        self.job.start()
-        
-        self.job.join(30.0)
-        if self.job.is_alive():
-            self.job.terminate()
-        self.job = None
-        
-        market_data = None
-        if 'page' in return_dict:
-            market_data = return_dict['page']
-        
-        if market_data:
-            self.save_page(cache_filename, market_data)
-        
-        time.sleep(1.0)
-        
-        return market_data
-    
     def add_manufacturing_requirements(self, type_id):
         
         markets_url = "http://www.eve-markets.net/detail.php?typeid=%s#industry" % type_id
@@ -230,8 +187,8 @@ class ManufacturingRequirements(object):
         
         market_data = None
         if not os.path.exists(cache_filename):
-            market_data = self.retry_fetch_market_data(markets_url, cache_filename) 
-
+            market_data = self.d.retry_fetch_data(markets_url)
+            
         else:
             print "Using cache: " + cache_filename
             f = open(cache_filename, 'r')
@@ -242,7 +199,7 @@ class ManufacturingRequirements(object):
                 os.remove(cache_filename)
                 
                 print "Bogus cache, retrying download..."
-                market_data = self.retry_fetch_market_data(markets_url, cache_filename)
+                market_data = self.d.retry_fetch_data(markets_url)
         
 #        f = open("data//Sorry.htm", 'r')
 #        market_data = f.read()
@@ -251,6 +208,8 @@ class ManufacturingRequirements(object):
         if not market_data:
             raise Exception("Failed download!")
             return False
+        else:
+            self.save_page(cache_filename, market_data)
         
         market_soup = BeautifulSoup(market_data)
         

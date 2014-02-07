@@ -71,10 +71,12 @@ if __name__ == "__main__":
     drake = 24698
     orca = 28606
     
-    typeids = [i for i in range(24000, 25000)]
-    #typeids = [21013]
+    test_id = 2869
     
-    excepted = False
+    typeids = [i for i in range(24000, 25000)]
+    #typeids = [test_id, test_id]
+
+    excepted = True
     if excepted:
         try:
             c = ManufacturingChecker()
@@ -86,8 +88,8 @@ if __name__ == "__main__":
         finally:
             c.finish()
     else:
-            c = ManufacturingChecker()
-            c.check_manufacturing_profit_bulk(typeids)
-            c.finish()
+        c = ManufacturingChecker()
+        c.check_manufacturing_profit_bulk(typeids)
+        c.finish()
         
 

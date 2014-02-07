@@ -1,12 +1,13 @@
 from bs4 import BeautifulSoup
 import requests
 from lxml import etree
+from downloader import Downloader
 
 
 class Prices(object):
     def __init__(self):
+        self.d = Downloader(wait=0)
         self.prices = {}
-        
     
     def download_component_prices(self, type_ids):    
         type_ids_str = ""
@@ -15,11 +16,7 @@ class Prices(object):
         
         prices_url = "http://api.eve-central.com/api/marketstat?%sregionlimit=10000002" % type_ids_str
         
-        print "Downloading " + str(prices_url)
-        
-        r  = requests.get(prices_url)
-        prices_data = r.text
-        print "Done"
+        prices_data = self.d.retry_fetch_data(prices_url)
     
         mineral_etree = etree.fromstring(str(prices_data))   
         type_values = [float(str(b.text).strip()) for b in mineral_etree.iterfind('.//type/buy/median')]
