@@ -47,8 +47,12 @@ class ManufacturingRequirements(object):
     def __init__(self):
         self.requirements_filename = "requirements.txt"
         self._clear()
+        
+        self.job = None
+        
         self.manager = SyncManager()
         self.manager.start()
+        
         
     def _clear(self):
         self.requirements = {}
@@ -194,6 +198,7 @@ class ManufacturingRequirements(object):
             self.job = Process(target=get_page_data, args=(markets_url, return_dict))
             self.job.start()
             self.job.join()
+            self.job = None
             market_data = return_dict['page']
             
             #market_data = get_page_data(markets_url)
@@ -311,7 +316,9 @@ if __name__ == "__main__":
     finally:
         m.save_requirements()
         
-        m.job.terminate()
-        m.job.join()
+        if m.job != None:
+            m.job.terminate()
+            m.job.join()
+            m.job = None
         
     

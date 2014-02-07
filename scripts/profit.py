@@ -4,6 +4,7 @@ from prices import Prices
 class ManufacturingChecker(object):
     def __init__(self):
         self.m = ManufacturingRequirements()
+        self.m.load_requirements()
         self.p = Prices()
         
         self.results = {}
@@ -34,7 +35,7 @@ class ManufacturingChecker(object):
     def check_manufacturing_profit(self, type_id):
         cost = self.check_manufacturing_cost(type_id)
         if cost == 0:
-            cost = 1
+            cost = 999999999999
         
         price = -1
         if type_id in self.m.requirements and self.m.requirements[type_id].name != 'Empty':
@@ -70,7 +71,8 @@ if __name__ == "__main__":
     drake = 24698
     orca = 28606
     
-    typeids = [i for i in range(24000, 25000)]
+    typeids = [i for i in range(21000, 21100)]
+    #typeids = [21013]
     
     c = ManufacturingChecker()
     
