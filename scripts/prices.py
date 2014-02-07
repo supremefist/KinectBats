@@ -2,6 +2,50 @@ from bs4 import BeautifulSoup
 import requests
 from lxml import etree
 
+
+class Prices(object):
+    def __init__(self):
+        self.prices = {}
+        
+    
+    def download_component_prices(self, type_ids):    
+        type_ids_str = ""
+        for type_id in type_ids:
+            type_ids_str += "typeid=%s&" % (type_id)
+        
+        prices_url = "http://api.eve-central.com/api/marketstat?%sregionlimit=10000002" % type_ids_str
+        
+        r  = requests.get(prices_url)
+        prices_data = r.text
+        print "Done"
+    
+        mineral_etree = etree.fromstring(prices_data)   
+        type_values = [float(str(b.text).strip()) for b in mineral_etree.iterfind('.//type/buy/median')]
+        
+        prices = []
+        for value in type_values:
+            prices.append(value)
+        
+        return prices
+    
+    def get_component_prices(self, type_ids):
+        need_fetch = False
+        
+        for type_id in type_ids:
+            if type_id not in self.prices:
+                need_fetch = True
+            
+        prices = []    
+        if need_fetch:
+            prices = self.download_component_prices(type_ids)
+            for idx, price in enumerate(prices):
+                self.prices[type_ids[idx]] = price
+        else:
+            for type_id in type_ids:
+                prices.append(self.prices[type_id])
+    
+        return prices
+
 def get_selling_price(fake=False):
     central_url = "http://api.eve-central.com/api/marketstat?typeid=%s&regionlimit=10000002" % type_id
     central_data = None
@@ -22,7 +66,9 @@ def get_selling_price(fake=False):
     return float(price_values[0])
 
 
-def get_component_prices(fake=False):
+
+
+def get_mineral_prices(fake=False):
     minerals_url = "http://api.eve-central.com/api/marketstat?typeid=34&typeid=35&typeid=36&typeid=37&typeid=38&typeid=39&typeid=40&regionlimit=10000002"
     mineral_data = None
     
@@ -61,19 +107,19 @@ def calculate_manufacturing_cost(manufacturing_requirements, component_prices):
         
     return cost
         
+if __name__ == "__main__":    
     
+    # Raven
+    type_id = 638
     
-# Raven
-type_id = 638
-
-# Orca
-#type_id = 28606
-
-fake = False
+    # Orca
+    #type_id = 28606
     
-component_prices = get_component_prices(fake)
-manufacturing_requirements = get_manufacturing_requirements(fake)
-selling_price = get_selling_price(fake)
-
-cost = calculate_manufacturing_cost(manufacturing_requirements, component_prices)
-print selling_price / cost
+    fake = False
+        
+    component_prices = get_component_prices(fake)
+    manufacturing_requirements = get_manufacturing_requirements(fake)
+    selling_price = get_selling_price(fake)
+    
+    cost = calculate_manufacturing_cost(manufacturing_requirements, component_prices)
+    print selling_price / cost

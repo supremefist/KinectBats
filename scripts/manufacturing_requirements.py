@@ -58,6 +58,9 @@ class ManufacturingRequirements(object):
         for component in self.requirements:
             ids.append(component.type_id)
         return ids
+    
+    def finish(self):
+        self.save_requirements()
         
     def load_requirements(self, filename=None):
         if not filename:
@@ -131,6 +134,43 @@ class ManufacturingRequirements(object):
         f.write(market_data)
         f.close()
     
+    def get_full_requirements_dict(self, type_id):
+        
+        if type_id == -1:
+            return None
+        
+        if not self.requirements.has_key(type_id):
+            self.add_manufacturing_requirements(type_id)
+            
+        final_requirements = {}
+        if type_id not in self.requirements:
+            raise Exception("Requirement for " + str(type_id) + " not found!")
+        
+        manufactured_component = self.requirements[type_id]
+        
+        for component_id in manufactured_component.components.keys():
+            # Check if we need to recurse:
+            sub_requirements = {}
+            component = manufactured_component.components[component_id]
+            
+            if component_id != -1:
+                sub_requirements = self.get_full_requirements_dict(component_id)
+                if sub_requirements:
+                    # Add sub requirements
+                    for sub_id in sub_requirements:
+                        if sub_id in final_requirements.keys():
+                            final_requirements[sub_id] += sub_requirements[sub_id] * component.amount
+                        else:
+                            final_requirements[sub_id] = sub_requirements[sub_id] * component.amount
+                else:
+                    
+                    if component_id in final_requirements.keys():
+                        final_requirements[component_id] += component.amount
+                    else:
+                        final_requirements[component_id] = component.amount
+        
+        return final_requirements
+    
     def _get_cache_filename(self, type_id):
         page_dir = "pages"
         subdir = os.path.join(page_dir, str(type_id / 1000))
@@ -151,15 +191,15 @@ class ManufacturingRequirements(object):
             print "Downloading " + markets_url
             
             return_dict = self.manager.dict()
-            job = Process(target=get_page_data, args=(markets_url, return_dict))
-            job.start()
-            job.join()
+            self.job = Process(target=get_page_data, args=(markets_url, return_dict))
+            self.job.start()
+            self.job.join()
             market_data = return_dict['page']
             
             #market_data = get_page_data(markets_url)
             
             self.save_page(cache_filename, market_data)
-            time.sleep(1)
+            time.sleep(1.0)
 
         else:
             print "Using cache: " + cache_filename
@@ -245,7 +285,7 @@ if __name__ == "__main__":
     ammo = 197
     
     start = 0
-    end = 30000
+    end = 1568
     
     try:
         for type_id_to_check in range(start, end):
@@ -270,5 +310,8 @@ if __name__ == "__main__":
         raise e
     finally:
         m.save_requirements()
+        
+        m.job.terminate()
+        m.job.join()
         
     

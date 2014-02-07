@@ -3,3 +3,4 @@ obj
 pages
 *.pyc
 requirements.txt*
+*.csv
