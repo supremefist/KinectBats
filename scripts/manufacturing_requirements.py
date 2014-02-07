@@ -184,7 +184,45 @@ class ManufacturingRequirements(object):
         
         cache_filename = os.path.join(subdir, str(type_id) + ".htm")
         return cache_filename
+    
+    def retry_fetch_market_data(self, markets_url, cache_filename):
+        market_data = self.fetch_market_data(markets_url, cache_filename)
         
+        retries = 1
+        while not market_data and retries < 100:
+            print "Retry #%s..." % str(retries)
+            market_data = self.fetch_market_data(markets_url, cache_filename)
+            if market_data:
+                print "Fetched: " + str(len(market_data))
+            else:
+                print "Fetched nothing!"
+            retries += 1
+        
+        return market_data
+    
+    def fetch_market_data(self, markets_url, cache_filename):
+        print "Downloading " + markets_url
+            
+        return_dict = self.manager.dict()
+        self.job = Process(target=get_page_data, args=(markets_url, return_dict))
+        self.job.start()
+        
+        self.job.join(30.0)
+        if self.job.is_alive():
+            self.job.terminate()
+        self.job = None
+        
+        market_data = None
+        if 'page' in return_dict:
+            market_data = return_dict['page']
+        
+        if market_data:
+            self.save_page(cache_filename, market_data)
+        
+        time.sleep(1.0)
+        
+        return market_data
+    
     def add_manufacturing_requirements(self, type_id):
         
         markets_url = "http://www.eve-markets.net/detail.php?typeid=%s#industry" % type_id
@@ -192,30 +230,27 @@ class ManufacturingRequirements(object):
         
         market_data = None
         if not os.path.exists(cache_filename):
-            print "Downloading " + markets_url
-            
-            return_dict = self.manager.dict()
-            self.job = Process(target=get_page_data, args=(markets_url, return_dict))
-            self.job.start()
-            self.job.join()
-            self.job = None
-            market_data = return_dict['page']
-            
-            #market_data = get_page_data(markets_url)
-            
-            self.save_page(cache_filename, market_data)
-            time.sleep(1.0)
+            market_data = self.retry_fetch_market_data(markets_url, cache_filename) 
 
         else:
             print "Using cache: " + cache_filename
             f = open(cache_filename, 'r')
             market_data = f.read()
             f.close()
-        
+            
+            if len(market_data) == 0:
+                os.remove(cache_filename)
+                
+                print "Bogus cache, retrying download..."
+                market_data = self.retry_fetch_market_data(markets_url, cache_filename)
         
 #        f = open("data//Sorry.htm", 'r')
 #        market_data = f.read()
 #        f.close()
+        
+        if not market_data:
+            raise Exception("Failed download!")
+            return False
         
         market_soup = BeautifulSoup(market_data)
         

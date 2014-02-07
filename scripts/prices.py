@@ -15,11 +15,13 @@ class Prices(object):
         
         prices_url = "http://api.eve-central.com/api/marketstat?%sregionlimit=10000002" % type_ids_str
         
+        print "Downloading " + str(prices_url)
+        
         r  = requests.get(prices_url)
         prices_data = r.text
         print "Done"
     
-        mineral_etree = etree.fromstring(prices_data)   
+        mineral_etree = etree.fromstring(str(prices_data))   
         type_values = [float(str(b.text).strip()) for b in mineral_etree.iterfind('.//type/buy/median')]
         
         prices = []

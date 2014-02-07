@@ -46,7 +46,7 @@ class ManufacturingChecker(object):
             self.results[type_id] = {"name": self.m.requirements[type_id].name, 
                                      'price': price, 
                                      'cost': cost, 
-                                     'profitability': profitability
+                                     'profitability': round(profitability, 4), 
                                      }
         
         return profitability
@@ -71,12 +71,23 @@ if __name__ == "__main__":
     drake = 24698
     orca = 28606
     
-    typeids = [i for i in range(21000, 21100)]
+    typeids = [i for i in range(24000, 25000)]
     #typeids = [21013]
     
-    c = ManufacturingChecker()
-    
-    c.check_manufacturing_profit_bulk(typeids)
-    
-    c.finish()
+    excepted = False
+    if excepted:
+        try:
+            c = ManufacturingChecker()
+            
+            c.check_manufacturing_profit_bulk(typeids)
+        except Exception, e:
+            print str(e)
+            
+        finally:
+            c.finish()
+    else:
+            c = ManufacturingChecker()
+            c.check_manufacturing_profit_bulk(typeids)
+            c.finish()
+        
 
