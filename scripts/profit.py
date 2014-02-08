@@ -4,8 +4,10 @@ from prices import Prices
 class ManufacturingChecker(object):
     def __init__(self):
         self.m = ManufacturingRequirements()
-        self.m.load_requirements()
+        self.m.load_groups()
+        
         self.p = Prices()
+        self.p.warm_up(self.m.get_valid_type_ids())
         
         self.results = {}
     
@@ -26,7 +28,10 @@ class ManufacturingChecker(object):
         
         return price
     
-    def check_manufacturing_profit_bulk(self, type_ids):
+    def check_manufacturing_profit_bulk(self, type_ids=None):
+        if not type_ids:
+            type_ids = self.m.get_valid_type_ids()
+            
         for type_id in type_ids:
             self.check_manufacturing_profit(type_id)
             if self.results.has_key(type_id):
@@ -48,6 +53,9 @@ class ManufacturingChecker(object):
                                      'cost': cost, 
                                      'profitability': round(profitability, 4), 
                                      }
+            
+        if type_id % 100 == 0:
+            self.finish()
         
         return profitability
     
@@ -73,15 +81,13 @@ if __name__ == "__main__":
     
     test_id = 2869
     
-    typeids = [i for i in range(24000, 25000)]
-    #typeids = [test_id, test_id]
-
-    excepted = True
+    excepted = False
     if excepted:
+        c = None
         try:
             c = ManufacturingChecker()
             
-            c.check_manufacturing_profit_bulk(typeids)
+            c.check_manufacturing_profit_bulk()
         except Exception, e:
             print str(e)
             
@@ -89,7 +95,7 @@ if __name__ == "__main__":
             c.finish()
     else:
         c = ManufacturingChecker()
-        c.check_manufacturing_profit_bulk(typeids)
+        c.check_manufacturing_profit_bulk()
         c.finish()
         
 

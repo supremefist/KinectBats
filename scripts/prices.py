@@ -27,6 +27,22 @@ class Prices(object):
         
         return prices
     
+    def warm_up(self, type_ids):
+        query_size = 150
+        end_id = 0
+        start_id = 0
+        for i in range(0, len(type_ids)/query_size):
+            start_id = i * query_size
+            end_id = (i + 1) * query_size
+            
+            self.get_component_prices(type_ids[start_id: end_id])   
+            
+        start_id = end_id
+        end_id = len(type_ids)
+        
+        self.get_component_prices(type_ids[start_id: end_id])
+        
+    
     def get_component_prices(self, type_ids):
         need_fetch = False
         
