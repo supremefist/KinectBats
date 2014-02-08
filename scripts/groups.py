@@ -66,6 +66,10 @@ class Groups(DataAccumulator):
         
     def finish(self):
         self.save_data()
+    
+    def is_entry_valid(self, type_id):
+        return True
+
 
 if __name__ == "__main__":
     g = Groups()

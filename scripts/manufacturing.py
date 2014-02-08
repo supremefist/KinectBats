@@ -129,6 +129,12 @@ class Manufacturing(DataAccumulator):
         self.data[data_id] = manufactured_component
         
         return True
+    
+    def is_entry_valid(self, type_id):
+        if self.data[type_id].name == "Empty":
+            return False
+        else:
+            return True
 
     def load_line(self, line):
         """ 

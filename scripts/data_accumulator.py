@@ -47,10 +47,15 @@ class DataAccumulator:
                 self.save_data()
 
 
+    @abstractmethod
+    def is_entry_valid(self, type_id):
+        pass
+
     def get_valid_data_ids(self):
         ids = []
         for component_id in self.data:
-            ids.append(component_id)
+            if self.is_entry_valid(component_id):
+                ids.append(component_id)
         return ids
     
     @abstractmethod

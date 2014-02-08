@@ -2,9 +2,61 @@ from bs4 import BeautifulSoup
 import requests
 from lxml import etree
 from downloader import Downloader
+from data_accumulator import DataAccumulator
+from manufacturing import Manufacturing
 
 
-class Prices(object):
+class Prices(DataAccumulator):
+    
+    """
+    Prices
+    
+    self.data = {
+        <type_id>: price,
+        <type_id>: price,
+        <type_id>: price,
+        <grouptype_id>: price,
+    }
+    """
+    def __init__(self):
+        super(Prices, self).__init__()
+        
+        self._set_data_descriptor("prices")
+        self._set_data_url("http://api.eve-central.com/api/marketstat?typeid=%s&regionlimit=10000002")
+        
+        self.d.wait = 0
+        
+    def _insert_entry_from_page_text(self, data_id, data_text):
+        mineral_etree = etree.fromstring(str(data_text))   
+        type_values = [float(str(b.text).strip()) for b in mineral_etree.iterfind('.//type/buy/median')]
+        
+        self.data[data_id] = float(type_values[0])
+        
+        return True
+
+    def load_line(self, line):
+        """ 
+        data_id|price
+        """
+        data_parts = line.split('|')
+        data_id = int(data_parts[0])
+        price = float(data_parts[1].strip())
+        
+        self.data[data_id] = price
+    
+    def save_entry(self, f, data_id):
+        price = self.data[data_id]
+        f.write(str(data_id) + "|" + str(price))
+        f.write('\n')
+        
+    def finish(self):
+        self.save_data()
+    
+    def is_entry_valid(self, type_id):
+        return True
+    
+        
+class OldPrices(object):
     def __init__(self):
         self.d = Downloader(wait=0)
         self.prices = {}
@@ -14,7 +66,7 @@ class Prices(object):
         for type_id in type_ids:
             type_ids_str += "typeid=%s&" % (type_id)
         
-        prices_url = "http://api.eve-central.com/api/marketstat?%sregionlimit=10000002" % type_ids_str
+        prices_url = "" % type_ids_str
         
         prices_data = self.d.retry_fetch_data(prices_url)
     
@@ -122,19 +174,29 @@ def calculate_manufacturing_cost(manufacturing_requirements, component_prices):
         
     return cost
         
-if __name__ == "__main__":    
+if __name__ == "__main__":
+    d = Prices()
     
-    # Raven
-    type_id = 638
+    print "Loading existing groups"
+    d.load_data()
+    print "Done!"
     
-    # Orca
-    #type_id = 28606
+    m = Manufacturing()
+    m.load_data()
     
-    fake = False
-        
-    component_prices = get_component_prices(fake)
-    manufacturing_requirements = get_manufacturing_requirements(fake)
-    selling_price = get_selling_price(fake)
+    valid_ids = m.get_valid_data_ids()
+    print valid_ids
     
-    cost = calculate_manufacturing_cost(manufacturing_requirements, component_prices)
-    print selling_price / cost
+    excepted=True
+    
+    if excepted:
+        try:
+            d.build_data(ids_to_check=valid_ids)
+                
+        except Exception, e:
+            print "A problem occurred!"
+            print str(e)
+        finally:
+            d.save_data()
+    else:
+        d.build_data(1000)
