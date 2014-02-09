@@ -33,7 +33,7 @@ class Downloader(object):
         return market_data
     
     def fetch_data(self, url):
-        print "Downloading " + url
+        print "Downloading " + url[0: min(64, len(url))] + "..."
             
         return_dict = self.manager.dict()
         self.job = Process(target=get_page_data, args=(url, return_dict))

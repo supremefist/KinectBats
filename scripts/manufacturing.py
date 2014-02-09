@@ -37,7 +37,7 @@ class Component(object):
         self.components = {}
         
     def __str__(self):
-        return "Component (" + self.name + ", id=" + str(self.type_id) + ", group_id=" + str(self.group_id) + ": amount -> " + str(self.amount)
+        return "Component (" + self.name + ", id=" + str(self.type_id) + ", group_id=" + str(self.group_id) + "): amount -> " + str(self.amount)
 
 
 class Manufacturing(DataAccumulator):
@@ -70,7 +70,7 @@ class Manufacturing(DataAccumulator):
             self.data[data_id] = manufactured_component
             return False
         
-        type_name = soup.find_all('h1')[0].string
+        type_name = soup.find_all('h1')[0].string.encode('utf8')
         
         group_id = -1
         
@@ -135,6 +135,23 @@ class Manufacturing(DataAccumulator):
             return False
         else:
             return True
+        
+    def fetch_all_valid_ids(self):
+        list_page_text = self.d.retry_fetch_data("http://www.eve-markets.net/lookup.php?search=")
+        
+        soup = BeautifulSoup(list_page_text)
+        anchors = soup.find_all('a')
+        
+        all_ids = []
+        
+        for anchor in anchors:
+            url = anchor.get('href')
+            type_id = get_typeid_from_url(url)
+            if type_id != -1:
+                all_ids.append(type_id)
+        
+        all_ids.sort()        
+        return all_ids
 
     def load_line(self, line):
         """ 
@@ -167,6 +184,7 @@ class Manufacturing(DataAccumulator):
         
         entries = component.components.keys()
         for type_id in entries:
+            
             entry = component.components[type_id]
             f.write(str(entry.type_id) + "|" + str(entry.amount) + " ")
             f.write('\n')
@@ -183,11 +201,14 @@ if __name__ == "__main__":
     m.load_data()
     print "Done!"
     
+    ids = m.fetch_all_valid_ids()
+    #ids = [33041]
+    
     excepted = True
     
     if excepted:
         try:
-            m.build_data(start_id=0, end_id=40000)
+            m.build_data(ids_to_check=ids)
                 
         except Exception, e:
             print "A problem occurred!"
@@ -195,6 +216,6 @@ if __name__ == "__main__":
         finally:
             m.finish()
     else:
-        m.build_data(start_id=0, end_id=40000)
+        m.build_data(ids_to_check=ids)
         
     

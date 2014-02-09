@@ -1,15 +1,18 @@
-from manufacturing_requirements import ManufacturingRequirements
+from manufacturing import Manufacturing
 from prices import Prices
 
 class ManufacturingChecker(object):
     def __init__(self):
-        self.m = ManufacturingRequirements()
-        self.m.load_groups()
-        
+        self.m = Manufacturing()
         self.p = Prices()
-        self.p.warm_up(self.m.get_valid_type_ids())
         
         self.results = {}
+    
+    def start(self):
+        self.m.load_data()
+        self.p.load_data()
+        self.p.warm_up(self.m.fetch_all_valid_ids())
+        
     
     def check_manufacturing_cost(self, type_id):
         requirements = self.m.get_full_requirements_dict(type_id)
@@ -30,7 +33,7 @@ class ManufacturingChecker(object):
     
     def check_manufacturing_profit_bulk(self, type_ids=None):
         if not type_ids:
-            type_ids = self.m.get_valid_type_ids()
+            type_ids = self.m.fetch_all_valid_ids()
             
         for type_id in type_ids:
             self.check_manufacturing_profit(type_id)
@@ -73,6 +76,7 @@ class ManufacturingChecker(object):
         f.close()
         
         self.m.finish()
+        self.p.finish()
 
 if __name__ == "__main__":
 
@@ -81,11 +85,12 @@ if __name__ == "__main__":
     
     test_id = 2869
     
-    excepted = False
+    excepted = True
     if excepted:
-        c = None
+        c = None 
         try:
             c = ManufacturingChecker()
+            c.start()
             
             c.check_manufacturing_profit_bulk()
         except Exception, e:
@@ -95,6 +100,7 @@ if __name__ == "__main__":
             c.finish()
     else:
         c = ManufacturingChecker()
+        c.start()
         c.check_manufacturing_profit_bulk()
         c.finish()
         

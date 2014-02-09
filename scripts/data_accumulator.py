@@ -9,7 +9,7 @@ class DataAccumulator:
     __metaclass__ = ABCMeta
     
     def __init__(self):
-        self.d = Downloader(wait=0.1)
+        self.d = Downloader(wait=0.0)
         
         self._clear()
         
