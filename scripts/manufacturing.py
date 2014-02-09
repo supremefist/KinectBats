@@ -136,6 +136,43 @@ class Manufacturing(DataAccumulator):
         else:
             return True
         
+    def get_full_requirements_dict(self, type_id):
+        
+        if type_id == -1:
+            return None
+        
+        if not self.data.has_key(type_id):
+            self.add_data(type_id)
+            
+        final_requirements = {}
+        if type_id not in self.data:
+            raise Exception("Requirement for " + str(type_id) + " not found!")
+        
+        manufactured_component = self.data[type_id]
+        
+        for component_id in manufactured_component.components.keys():
+            # Check if we need to recurse:
+            sub_requirements = {}
+            component = manufactured_component.components[component_id]
+            
+            if component_id != -1:
+                sub_requirements = self.get_full_requirements_dict(component_id)
+                if sub_requirements:
+                    # Add sub requirements
+                    for sub_id in sub_requirements:
+                        if sub_id in final_requirements.keys():
+                            final_requirements[sub_id] += sub_requirements[sub_id] * component.amount
+                        else:
+                            final_requirements[sub_id] = sub_requirements[sub_id] * component.amount
+                else:
+                    
+                    if component_id in final_requirements.keys():
+                        final_requirements[component_id] += component.amount
+                    else:
+                        final_requirements[component_id] = component.amount
+        
+        return final_requirements
+        
     def fetch_all_valid_ids(self):
         list_page_text = self.d.retry_fetch_data("http://www.eve-markets.net/lookup.php?search=")
         
@@ -187,7 +224,8 @@ class Manufacturing(DataAccumulator):
             
             entry = component.components[type_id]
             f.write(str(entry.type_id) + "|" + str(entry.amount) + " ")
-            f.write('\n')
+        
+        f.write('\n')
             
     def finish(self):
         self.groups.save_data()
@@ -202,7 +240,7 @@ if __name__ == "__main__":
     print "Done!"
     
     ids = m.fetch_all_valid_ids()
-    #ids = [33041]
+    #ids = [24698]
     
     excepted = True
     

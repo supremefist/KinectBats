@@ -41,6 +41,13 @@ class Prices(DataAccumulator):
         price = float(data_parts[1].strip())
         
         self.data[data_id] = price
+        
+    def get_component_prices(self, data_ids):
+        prices = []
+        for data_id in data_ids:
+            prices.append(self.data[data_id])
+            
+        return prices
     
     def save_entry(self, f, data_id):
         price = self.data[data_id]

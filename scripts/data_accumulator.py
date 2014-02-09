@@ -24,13 +24,14 @@ class DataAccumulator:
         self.data_url = data_url
 
     def build_data(self, ids_to_check=None, start_id=None, end_id=None):
+        force = False
         if not ids_to_check:
             if not end_id:
                 end_id = start_id + 1
             ids_to_check = range(start_id, end_id)
         
         for id_to_check in ids_to_check:
-            if id_to_check not in self.data:
+            if id_to_check not in self.data or force:
                 try:
                     if self.add_data(id_to_check):
                         print "Added: " + str(self.data[id_to_check])
