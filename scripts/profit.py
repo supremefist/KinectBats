@@ -53,7 +53,7 @@ class ManufacturingChecker(object):
             valid = True
             
             invalid_name_strings = ['booster', 'sisters', 'domination', 'shadow', 'dread', 'alliance', ' ii', '\'', 'navy', 'fleet', 'blood', 'guristas', 'sansha', 'angel']
-            invalid_group_strings = ['advanced', 'faction', 'implants', 'unknown', 'infantry', 'trade goods', 'ore & minerals', 'skills', 'blueprint', 'special edition']
+            invalid_group_strings = ['advanced', 'faction', 'implants', 'unknown', 'infantry', 'trade goods', 'ore & minerals', 'skills', 'blueprint', 'special edition', 'subsystems']
             
             lower_name = component.name.lower()
             for invalid_name_string in invalid_name_strings:
