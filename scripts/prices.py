@@ -43,6 +43,14 @@ class Prices(DataAccumulator):
         self.data[data_id] = price
         
     def get_component_prices(self, data_ids):
+        
+        need_fetch = False
+        for data_id in data_ids:
+            if data_id not in self.data:
+                need_fetch = True
+                
+        self.add_bulk_data(data_ids)
+        
         prices = []
         for data_id in data_ids:
             prices.append(self.data[data_id])

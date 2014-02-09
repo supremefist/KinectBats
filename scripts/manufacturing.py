@@ -37,7 +37,7 @@ class Component(object):
         self.components = {}
         
     def __str__(self):
-        return "Component (" + self.name + ", id=" + str(self.type_id) + ", group_id=" + str(self.group_id) + "): amount -> " + str(self.amount)
+        return "Component (id=" + str(self.type_id) + ", " + self.name + ", group_id=" + str(self.group_id) + ")"
 
 
 class Manufacturing(DataAccumulator):
@@ -63,14 +63,14 @@ class Manufacturing(DataAccumulator):
     def _insert_entry_from_page_text(self, data_id, data_text):
         soup = BeautifulSoup(data_text)
         
+        type_name = soup.find_all('h1')[0].string.encode('utf8')
+        
         if 'Sorry' in [v.string for v in soup.find_all('h2')] or 'Error' in [v.string for v in soup.find_all('h1')]:
             # The item with this typeid does not exist!
-            manufactured_component = Component("Empty", data_id)
-            manufactured_component.components = {-1: Component("Empty", -1)}
+            manufactured_component = Component(type_name, data_id)
+            manufactured_component.components = {-1: Component("None", -1)}
             self.data[data_id] = manufactured_component
             return False
-        
-        type_name = soup.find_all('h1')[0].string.encode('utf8')
         
         group_id = -1
         
@@ -102,7 +102,7 @@ class Manufacturing(DataAccumulator):
                                     for_unit_string = sub_div.find_all('span')[0].string[10:10 + digits]
                                     for_unit_count = int(for_unit_string)
                                 except ValueError, e:
-                                    pass
+                                    print "Could not find number" 
                                 
                                 digits -= 1
                     
@@ -194,30 +194,33 @@ class Manufacturing(DataAccumulator):
         """ 
         data_id|group_name
         """
-        parts = line.split('*')
-        manufactured_component_str = parts[0].strip()
-        manufactured_component_str_parts = manufactured_component_str.split('|') 
-        manufactured_type_id = int(manufactured_component_str_parts[0])
-        manufactured_type_name = manufactured_component_str_parts[1]
-        manufactured_group_id = int(manufactured_component_str_parts[2])
-        
-        manufactured_component = Component(manufactured_type_name, manufactured_type_id, group_id=manufactured_group_id) 
-        
-        component_parts = parts[1].strip().split(' ')
-        for component_str in component_parts:
-            component_str_parts = component_str.split('|')
+        try:
+            parts = line.split(' -> ')
+            manufactured_component_str = parts[0].strip()
+            manufactured_component_str_parts = manufactured_component_str.split('|') 
+            manufactured_type_id = int(manufactured_component_str_parts[0])
+            manufactured_type_name = manufactured_component_str_parts[1]
+            manufactured_group_id = int(manufactured_component_str_parts[2])
             
-            component_type_id = int(component_str_parts[0])
-            component_amount = float(component_str_parts[1])
+            manufactured_component = Component(manufactured_type_name, manufactured_type_id, group_id=manufactured_group_id) 
             
-            manufactured_component.components[component_type_id] = Component("", component_type_id, component_amount)
-            
-        self.data[manufactured_type_id] = manufactured_component
+            component_parts = parts[1].strip().split(' ')
+            for component_str in component_parts:
+                component_str_parts = component_str.split('|')
+                
+                component_type_id = int(component_str_parts[0])
+                component_amount = float(component_str_parts[1])
+                
+                manufactured_component.components[component_type_id] = Component("", component_type_id, component_amount)
+                
+            self.data[manufactured_type_id] = manufactured_component
+        except Exception, e:
+            print "Load line failed on '" + line + "': " + str(e)
     
     def save_entry(self, f, data_id):
         component = self.data[data_id]
         f.write(str(component.type_id) + "|" + component.name + "|" + str(component.group_id))
-        f.write(' * ')
+        f.write(' -> ')
         
         entries = component.components.keys()
         for type_id in entries:

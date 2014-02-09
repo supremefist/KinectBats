@@ -142,7 +142,7 @@ class DataAccumulator:
             page_text = self.d.retry_fetch_data(data_url)
             
         else:
-            print "Using cache: " + cache_filename
+            #print "Using cache: " + cache_filename
             f = open(cache_filename, 'r')
             page_text = f.read()
             page_text = page_text.decode('utf8')
