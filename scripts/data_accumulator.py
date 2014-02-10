@@ -3,7 +3,9 @@ import os
 from abc import ABCMeta, abstractmethod
 import shutil
 import requests
-
+import json
+import cPickle as pickle
+        
 
 class DataAccumulator:
     __metaclass__ = ABCMeta
@@ -22,6 +24,10 @@ class DataAccumulator:
         
     def _set_data_url(self, data_url):
         self.data_url = data_url
+
+    def get_entry(self, data_id):
+        self.build_data(ids_to_check=[data_id])
+        return self.data[data_id]
 
     def build_data(self, ids_to_check=None, start_id=None, end_id=None):
         force = False
@@ -42,7 +48,8 @@ class DataAccumulator:
                     print "Request HTTP Error: " + str(e)
                 
             else:
-                print "Skipping type " + str(id_to_check) + "!"
+                #print "Skipping existing type " + str(id_to_check) + "!"
+                pass
                 
             if id_to_check % 1000 == 0:
                 self.save_data()
@@ -72,26 +79,10 @@ class DataAccumulator:
         f.write(market_data.encode('utf8'))
         f.close()
 
-    @abstractmethod
-    def load_line(self, line):
-        pass
+#    @abstractmethod
+#    def load_line(self, line):
+#        pass
 
-    def load_data(self, filename=None):
-        if not filename:
-            filename = self.requirements_filename
-        
-        self._clear()
-        
-        if os.path.exists(filename):
-            f = open(filename, 'r')
-            for line in f:
-                try:
-                    self.load_line(line)
-                except Exception, e:
-                    print str(e)
-                    
-            f.close()
-            
     def _get_cache_filename(self, data_id):
         page_dir = self.data_descriptor + "_pages"
         subdir = os.path.join(page_dir, str(data_id / 1000))
@@ -102,33 +93,58 @@ class DataAccumulator:
         cache_filename = os.path.join(subdir, str(data_id) + ".htm")
         return cache_filename
             
-    @abstractmethod
-    def save_entry(self, entry_id):
-        pass
-    
+#    @abstractmethod
+#    def save_entry(self, entry_id):
+#        pass
+#    
     @abstractmethod
     def _insert_entry_from_page_text(self, data_id, group_data):
         pass
 
+    def load_data(self, filename=None):
+        if not filename:
+            filename = self.requirements_filename
+            
+        if os.path.exists(filename):
+            with open(filename, 'rb') as fp:
+                self.data = pickle.load(fp)
+        else:
+            print "No data to load for " + self.data_descriptor + "..."
+#        
+#        self._clear()
+#        
+#        if os.path.exists(filename):
+#            f = open(filename, 'r')
+#            for line in f:
+#                try:
+#                    self.load_line(line)
+#                except Exception, e:
+#                    print str(e)
+#                    
+#            f.close()
+
     def save_data(self, filename=None):
         if not filename:
             filename = self.requirements_filename
-        
-        if os.path.exists(filename):
-            backup_filename = filename + ".bak"
-            if os.path.exists(backup_filename):
-                os.remove(backup_filename)
-                
-            shutil.copy(filename, backup_filename)
-        
-        f = open(filename, 'w')
-        
-        keys = self.data.keys()
-        keys.sort()
-        
-        for data_id in keys:
-            self.save_entry(f, data_id)
-        f.close()
+
+        with open(filename, 'wb') as fp:
+            pickle.dump(self.data, fp)
+#        
+#        if os.path.exists(filename):
+#            backup_filename = filename + ".bak"
+#            if os.path.exists(backup_filename):
+#                os.remove(backup_filename)
+#                
+#            shutil.copy(filename, backup_filename)
+#        
+#        f = open(filename, 'w')
+#        
+#        keys = self.data.keys()
+#        keys.sort()
+#        
+#        for data_id in keys:
+#            self.save_entry(f, data_id)
+#        f.close()
         
         print self.data_descriptor + " saved."
         

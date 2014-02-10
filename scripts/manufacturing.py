@@ -13,6 +13,7 @@ from multiprocessing.managers import SyncManager
 from downloader import Downloader
 from data_accumulator import DataAccumulator
 from groups import Groups
+from components import Component
 
 def get_typeid_from_url(url):
     m = re.match(".*typeid=(\d+).*", url)
@@ -25,19 +26,6 @@ def get_group_id_from_url(url):
     if m:
         return int(m.groups()[0])
     return -1
-
-
-class Component(object):
-    def __init__(self, name, type_id, amount=1, group_id=-1):
-        self.name = name
-        self.type_id = type_id
-        self.amount = amount
-        self.group_id = group_id
-        
-        self.components = {}
-        
-    def __str__(self):
-        return "Component (id=" + str(self.type_id) + ", " + self.name + ", group_id=" + str(self.group_id) + ")"
 
 
 class Manufacturing(DataAccumulator):
@@ -83,8 +71,26 @@ class Manufacturing(DataAccumulator):
                     group_url = anchor.get('href')
                     group_id = get_group_id_from_url(group_url)
                     self.groups.add_data(group_id)
+                    
+        volume = 9999999999
         
-        manufactured_component = Component(type_name, data_id, 1, group_id=group_id)
+        # Let's try to decipher the volume
+        forms = soup.find_all('form')
+        for form in forms:
+            if form.get('name') == 'type_add':
+                dds = form.find_all('dd')
+                mm_string = str(dds[1])
+                mm_string = mm_string.replace('<dd>', '')
+                mm_string = mm_string[0:mm_string.index('<sup>') - 1]
+                volume = float(mm_string)
+#            form_anchors = form.find_all('a')
+#            for anchor in form_anchors:
+#                if anchor.string == 'Browse Market Group':
+#                    group_url = anchor.get('href')
+#                    group_id = get_group_id_from_url(group_url)
+#                    self.groups.add_data(group_id)
+        
+        manufactured_component = Component(type_name, data_id, 1, group_id=group_id, volume=volume)
         
         for_unit_count = 1
         
@@ -243,7 +249,7 @@ if __name__ == "__main__":
     print "Done!"
     
     ids = m.fetch_all_valid_ids()
-    #ids = [24698]
+    #ids = [36]
     
     excepted = True
     
