@@ -53,7 +53,7 @@ class ProfitChecker:
         
         final_ids = self.filter_type_ids(type_ids)
             
-        for type_id in type_ids:
+        for type_id in final_ids:
             self.check_profit(type_id)
 
     @abstractmethod
