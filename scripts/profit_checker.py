@@ -6,7 +6,7 @@ import requests
 import json
 import cPickle as pickle
 from manufacturing import Manufacturing
-from prices import Prices
+from prices import Prices, PriceType
 from groups import Groups
         
 
@@ -34,7 +34,7 @@ class ProfitChecker:
         requirements = self.m.get_full_requirements_dict(type_id)
     
         requirement_ids = requirements.keys()
-        prices = self.p.get_component_prices(requirement_ids)
+        prices = self.p.get_component_prices(requirement_ids, price_type=PriceType.SELL_PERCENTILE)
         
         cost = 0
         for requirement_id in requirement_ids:

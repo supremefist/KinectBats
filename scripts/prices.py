@@ -18,11 +18,32 @@ class Region:
     # Amarr, Domain
     AMARR = 10000043
     
-    # Sinq Laison - Dodixie
+    # Dodixie, Sinq Laison
     DODIXIE = 10000032
     
-    # Heimatar - Rens
+    # Rens, Heimatar
     RENS = 10000030
+    
+    @classmethod
+    def get_region_string(cls, region_id):
+        if region_id == Region.JITA:
+            return "Forge"
+        elif region_id == Region.HEK:
+            return "Metropolis"
+        elif region_id == Region.AMARR:
+            return "Domain"
+        elif region_id == Region.DODIXIE:
+            return "Sinq Laison"
+        elif region_id == Region.RENS:
+            return "Heimatar"
+        else:
+            return "Unknown"
+        
+        return [Region.JITA, Region.AMARR, Region.DODIXIE, Region.HEK, Region.RENS]
+    
+    @classmethod
+    def get_all_regions(cls):
+        return [Region.JITA, Region.AMARR, Region.DODIXIE, Region.HEK, Region.RENS]
 
 class PriceType:
     BUY_VOLUME = './/type/buy/volume'
@@ -149,7 +170,7 @@ class Prices(DataAccumulator):
             for data_id in data_ids:
                 types_string += "typeid=" + str(data_id) + "&"
             
-            regions = [Region.JITA, Region.AMARR, Region.DODIXIE, Region.HEK, Region.RENS]
+            regions = Region.get_all_regions()
             for region_id in regions:
                 final_url = url % (types_string, region_id)
                 data_text = self.d.retry_fetch_data(final_url)

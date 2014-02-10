@@ -25,9 +25,9 @@ class DataAccumulator:
     def _set_data_url(self, data_url):
         self.data_url = data_url
 
-    def get_entry(self, data_id):
-        self.build_data(ids_to_check=[data_id])
-        return self.data[data_id]
+    def get_entry(self, type_id):
+        self.build_data(ids_to_check=[type_id])
+        return self.data[type_id]
 
     def build_data(self, ids_to_check=None, start_id=None, end_id=None):
         force = False

@@ -1,5 +1,5 @@
 from manufacturing import Manufacturing
-from prices import Prices
+from prices import Prices, PriceType
 from groups import Groups
 from profit_checker import ProfitChecker
 
@@ -8,7 +8,7 @@ class ManufacturingChecker(ProfitChecker):
         super(ManufacturingChecker, self).__init__()
     
     def check_market_price(self, type_id):
-        price = self.p.get_component_prices([type_id])[0]
+        price = self.p.get_component_prices([type_id], price_type=PriceType.SELL_PERCENTILE)[0]
         
         return price
     
