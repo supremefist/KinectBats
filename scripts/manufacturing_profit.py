@@ -52,39 +52,24 @@ class ManufacturingChecker(ProfitChecker):
             price = self.check_market_price(type_id)
         profitability = price / cost
         
-        component = self.m.data[type_id]
-        
         if profitability != -1 and cost > -1:
-            group_name = "Unknown"
-            if component.group_id in self.g.data:
-                group_name = self.g.data[component.group_id]
-            self.results[type_id] = {"name": self.m.data[type_id].name, 
-                                     'price': price, 
-                                     'cost': cost, 
-                                     'profitability': round(profitability, 4),
-                                     'group': group_name 
-                                     }
+            result = {}
+            self.add_basics_to_result(result, type_id)
+            
+            result['price'] = price
+            result['cost'] = cost
+            result['profitability'] = profitability
+            
+            self.results[type_id] = result
             
         if type_id % 100 == 0:
             self.finish(filename='manufacturing_profit.csv')
         
         return profitability
     
-    def write_output(self, filename='manufacturing_profit.csv'):
-        f = open(filename, 'w')
-        f.write("Name,Price,Cost,Profitability,Group\n")
-        
-        type_ids = self.results.keys()
-        type_ids.sort()
-        
-        for type_id in type_ids:
-            result = self.results[type_id]
-            f.write(result['name'] + "," + str(result['price']) + "," + str(result['cost']) + "," + str(result['profitability']) + "," + str(result['group'] + "\n"))
-        
-        f.close()
-        
-        print "Calculated profitability for " + str(len(type_ids)) + " items!"
-        
+    def filter_results(self):
+        pass
+    
 
 if __name__ == "__main__":
 

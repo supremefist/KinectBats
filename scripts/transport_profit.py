@@ -20,18 +20,17 @@ class TransportChecker(ProfitChecker):
                 dest_region = regions[j]
                 
                 
-                buy_type_volume = PriceType.BUY_VOLUME
+                buy_type_volume = PriceType.SELL_VOLUME
                 sell_type_volume = PriceType.SELL_VOLUME
                 
-                buy_type = PriceType.SELL_MEDIAN
-                sell_type = PriceType.SELL_MEDIAN
+                buy_type = PriceType.SELL_PERCENTILE
+                sell_type = PriceType.SELL_PERCENTILE
                   
                 
                 source_sell_volume = self.p.get_component_prices([type_id], sell_type_volume, source_region)[0]
                 source_buy_volume = self.p.get_component_prices([type_id], buy_type_volume, source_region)[0]
                 dest_sell_volume = self.p.get_component_prices([type_id], sell_type_volume, dest_region)[0]
                 dest_buy_volume = self.p.get_component_prices([type_id], buy_type_volume, dest_region)[0]
-                
                 
                 source_sell_price = self.p.get_component_prices([type_id], sell_type, source_region)[0]
                 source_buy_price = self.p.get_component_prices([type_id], buy_type, source_region)[0]
@@ -75,30 +74,30 @@ class TransportChecker(ProfitChecker):
                     if type_id not in self.results:
                         self.results[type_id] = []
                 
-                    new_result = {'name': component.name,
-                                 'source': Region.get_region_string(final_source),
-                                 'destination': Region.get_region_string(final_destination),
-                                 'profit': final_profit,
-                                 'profit/m3': profit_m3,
-                                 'profit_ratio': profit_ratio
-                                 }
+                    
+                    result = {}
+                    self.add_basics_to_result(result, type_id)
+                    result['source'] = Region.get_region_string(final_source)
+                    result['destination'] = Region.get_region_string(final_destination)
+                    result['buy_price'] = final_source_price
+                    result['sell_price'] = final_dest_price
+                    result['profit'] = final_profit
+                    result['profit/m3'] = profit_m3
+                    result['profit_ratio'] = profit_ratio
                 
-                    self.results[type_id].append(new_result)
-        
-    def write_output(self, filename):
-        f = open(filename, 'w')
-        f.write("Name,Source,Destination,Profit,Profit/M3,Profit Ratio\n")
-        
-        type_ids = self.results.keys()
-        type_ids.sort()
-        
-        for type_id in type_ids:
+                    self.results[type_id].append(result)
+    
+    def filter_results(self):
+        for type_id in self.results.keys():
             for result in self.results[type_id]:
-                f.write(result['name'] + "," + str(result['source']) + "," + str(result['destination']) + "," + str(result['profit']) + "," + str(result['profit/m3']) + "," + str(result['profit_ratio']) + "\n")
-        
-        f.close()
-        
-        print "Calculated profitability for " + str(len(type_ids)) + " items!"
+                remove = False
+                if result['buy_price'] > 1000000000:
+                    remove = True
+                    
+                if remove:
+                    self.results[type_id].remove(result)
+                
+            
     
     def filter_type_ids(self, type_ids):
         final_type_ids = []
@@ -109,7 +108,7 @@ class TransportChecker(ProfitChecker):
                 final_type_ids.append(type_id)
         
         return final_type_ids
-
+    
 if __name__ == "__main__":
 
     drake = 24698

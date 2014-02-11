@@ -51,10 +51,6 @@ class DataAccumulator:
                 #print "Skipping existing type " + str(id_to_check) + "!"
                 pass
                 
-            if id_to_check % 1000 == 0:
-                self.save_data()
-
-
     @abstractmethod
     def is_entry_valid(self, type_id):
         pass
@@ -150,6 +146,9 @@ class DataAccumulator:
         
     def add_data(self, data_id):
         
+        if data_id in self.data:
+            return True
+        
         data_url = self.data_url % data_id
         cache_filename = self._get_cache_filename(data_id)
         
@@ -180,5 +179,7 @@ class DataAccumulator:
         
         if page_text:
             del page_text
+        
+        print "Added: " + str(self.data[data_id])
         
         return True

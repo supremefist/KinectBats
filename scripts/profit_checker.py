@@ -63,13 +63,72 @@ class ProfitChecker:
     @abstractmethod
     def check_profit(self, type_id):
         pass
+    
+    def add_basics_to_result(self, result, type_id):
+        component = self.m.data[type_id]
         
-    @abstractmethod
+        group_name = "Unknown"
+        if component.group_id in self.g.data:
+            group_name = self.g.data[component.group_id]
+            
+        result['name'] = component.name
+        result['group'] = group_name
+        result['volume'] = component.volume
+            
+        return result
+    
     def write_output(self, filename):
+        type_ids = self.results.keys()
+        
+        if len(type_ids) > 0:
+            f = open(filename, 'w')
+            
+            
+            
+            if type(self.results[type_ids[0]]) == type([]):
+                # We are writing a list of results within each type_id
+                column_names = self.results[type_ids[0]][0].keys()
+                column_names.sort()
+                
+                for key in column_names:
+                    f.write(key + ",")
+                f.write('\n')
+                
+                type_ids = self.results.keys()
+                type_ids.sort()
+                
+                for type_id in type_ids:
+                    for entry in self.results[type_id]:
+                        for key in column_names:
+                            f.write(str(entry[key]) + ",")
+                        f.write('\n')
+            else:
+                # We have a single result for each type_id
+                column_names = self.results[type_ids[0]].keys()
+                column_names.sort()
+                
+                for key in column_names:
+                    f.write(key + ",")
+                f.write('\n')
+                
+                type_ids = self.results.keys()
+                type_ids.sort()
+                
+                for type_id in type_ids:
+                    for key in column_names:
+                        f.write(str(self.results[type_id][key]) + ",")
+                    f.write('\n')
+        
+            f.close()
+        
+        print "Calculated profitability for " + str(len(type_ids)) + " items!"
+
+    @abstractmethod
+    def filter_results(self):
         pass
 
     def finish(self, filename):
         self.write_output(filename)
-        
+        self.p.finish()
         self.m.finish()
         self.g.finish()
