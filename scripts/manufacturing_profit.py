@@ -62,9 +62,6 @@ class ManufacturingChecker(ProfitChecker):
             
             self.results[type_id] = result
             
-        if type_id % 100 == 0:
-            self.finish(filename='manufacturing_profit.csv')
-        
         return profitability
     
     def filter_results(self):
