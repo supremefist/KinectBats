@@ -23,8 +23,8 @@ class TransportChecker(ProfitChecker):
                 buy_type_volume = PriceType.SELL_VOLUME
                 sell_type_volume = PriceType.SELL_VOLUME
                 
-                buy_type = PriceType.SELL_PERCENTILE
-                sell_type = PriceType.SELL_PERCENTILE
+                buy_type = PriceType.SELL_MIN
+                sell_type = PriceType.SELL_MIN
                   
                 
                 source_sell_volume = self.p.get_component_prices([type_id], sell_type_volume, source_region)[0]
