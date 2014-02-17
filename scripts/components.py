@@ -8,6 +8,7 @@ class Component(object):
         self.volume = volume
         
         self.components = {}
+        self.reprocessing = {}
         
     def __str__(self):
         return "Component (id=" + str(self.type_id) + ", " + self.name + ", group_id=" + str(self.group_id) + ")"

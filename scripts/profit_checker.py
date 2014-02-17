@@ -41,6 +41,18 @@ class ProfitChecker:
             cost += requirements[requirement_id] * prices[requirement_ids.index(requirement_id)]
     
         return cost
+    
+    def check_reprocessing_value(self, type_id):
+        requirements = self.m.get_full_reprocessing_dict(type_id)
+    
+        requirement_ids = requirements.keys()
+        prices = self.p.get_component_prices(requirement_ids, price_type=PriceType.SELL_PERCENTILE)
+        
+        value = 0
+        for requirement_id in requirement_ids:
+            value += requirements[requirement_id] * prices[requirement_ids.index(requirement_id)]
+    
+        return value
 
     def check_profit_bulk(self, type_ids=None):
         if not type_ids:

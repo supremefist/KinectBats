@@ -3,9 +3,9 @@ from prices import Prices, PriceType
 from groups import Groups
 from profit_checker import ProfitChecker
 
-class ManufacturingChecker(ProfitChecker):
+class ReprocessingChecker(ProfitChecker):
     def __init__(self):
-        super(ManufacturingChecker, self).__init__()
+        super(ReprocessingChecker, self).__init__()
     
     def check_market_price(self, type_id):
         price = self.p.get_component_prices([type_id], price_type=PriceType.SELL_PERCENTILE)[0]
@@ -25,8 +25,10 @@ class ManufacturingChecker(ProfitChecker):
             
             valid = True
             
-            invalid_name_strings = ['booster', 'sisters', 'domination', 'shadow', 'dread', 'alliance', ' ii', '\'', 'navy', 'fleet', 'blood', 'guristas', 'sansha', 'angel']
-            invalid_group_strings = ['advanced', 'faction', 'implants', 'unknown', 'infantry', 'trade goods', 'skills', 'blueprint', 'special edition', 'subsystems']
+            invalid_name_strings = []
+            #invalid_name_strings = ['booster', 'sisters', 'domination', 'shadow', 'dread', 'alliance', ' ii', '\'', 'navy', 'fleet', 'blood', 'guristas', 'sansha', 'angel']
+            invalid_group_strings = []
+            #invalid_group_strings = ['advanced', 'faction', 'implants', 'unknown', 'infantry', 'trade goods', 'skills', 'blueprint', 'special edition', 'subsystems']
             
             lower_name = component.name.lower()
             for invalid_name_string in invalid_name_strings:
@@ -43,21 +45,23 @@ class ManufacturingChecker(ProfitChecker):
         return final_ids
     
     def check_profit(self, type_id):
-        cost = self.check_manufacturing_cost(type_id)
-        if cost == 0:
-            cost = -1
+        value = self.check_reprocessing_value(type_id)
         
         price = -1
         if type_id in self.m.data and self.m.data[type_id].name != 'Empty':
             price = self.check_market_price(type_id)
-        profitability = price / cost
         
-        if profitability != -1 and cost > -1:
+        if price == 0:
+            price = -1
+        
+        profitability = value / price 
+        
+        if profitability != -1 and value > -1:
             result = {}
             self.add_basics_to_result(result, type_id)
             
             result['price'] = price
-            result['cost'] = cost
+            result['value'] = value
             result['profitability'] = profitability
             
             self.results[type_id] = result
@@ -79,7 +83,7 @@ if __name__ == "__main__":
     if excepted:
         c = None 
         try:
-            c = ManufacturingChecker()
+            c = ReprocessingChecker()
             c.start()
             
             c.check_profit_bulk()
@@ -87,11 +91,11 @@ if __name__ == "__main__":
             print str(e)
             
         finally:
-            c.finish('manufacturing_profit.csv')
+            c.finish('reprocessing_profit.csv')
     else:
-        c = ManufacturingChecker()
+        c = ReprocessingChecker()
         c.start()
         c.check_profit_bulk()
-        c.finish('manufacturing_profit.csv')
+        c.finish('reprocessing_profit.csv')
         
 
