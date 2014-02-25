@@ -11,6 +11,11 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
 
+using FarseerPhysics;
+using FarseerPhysics.Dynamics;
+using FarseerPhysics.Factories;
+using FarseerPhysics.Common;
+
 using Microsoft.Kinect;
 
 namespace KinectBats
@@ -18,8 +23,12 @@ namespace KinectBats
     /// <summary>
     /// This is the main type for your game
     /// </summary>
-    public class KinectBats : Microsoft.Xna.Framework.Game
+    public class KinectBats : Game
     {
+        World world;
+        Body leftBody;
+        Vertices leftBodyVertices;
+
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
         KinectSensor kinect;
@@ -64,7 +73,10 @@ namespace KinectBats
         /// </summary>
         protected override void Initialize()
         {
-            
+
+            // 1 meter = 64 pixels
+            ConvertUnits.SetDisplayUnitToSimUnitRatio(64f);
+
             try
             {
                 if (KinectSensor.KinectSensors.Count > 0)
@@ -84,8 +96,6 @@ namespace KinectBats
 
                         cm = new CoordinateMapper(kinect);
                         Debug.WriteLineIf(debugging, kinect.Status);
-
-                        
                     }
 
                     
@@ -98,7 +108,7 @@ namespace KinectBats
 
             base.Initialize();
 
-            l = new Line(new Vector2(0, 0), new Vector2(100, 100), 20, Color.Black, pixel);
+            //l = new Line(new Vector2(0, 0), new Vector2(100, 100), 20, Color.Black, pixel);
         }
 
         Skeleton[] GetPlayerSkeletons(AllFramesReadyEventArgs e)
@@ -268,6 +278,14 @@ namespace KinectBats
             marker = this.Content.Load<Texture2D>("marker");
             marker2 = this.Content.Load<Texture2D>("marker2");
 
+            world = new World(new Vector2(0, 10f));
+
+            leftBodyVertices = PolygonTools.CreateRectangle(ConvertUnits.ToSimUnits(100), ConvertUnits.ToSimUnits(20));
+            leftBody = BodyFactory.CreatePolygon(world, leftBodyVertices, 1f);
+            
+            //leftBody = BodyFactory.CreateRectangle(world, ConvertUnits.ToSimUnits(100), ConvertUnits.ToSimUnits(20), 1f);
+            leftBody.BodyType = BodyType.Dynamic;
+            leftBody.Position = new Vector2(ConvertUnits.ToSimUnits(100), ConvertUnits.ToSimUnits(100));
         }
 
         /// <summary>
@@ -290,7 +308,10 @@ namespace KinectBats
             if ((Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.Escape)) || (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed))
                 this.Exit();
 
-            l.Update(gameTime);
+            // variable time step but never less then 30 Hz
+            world.Step(Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, (1f / 30f)));
+
+            //l.Update(gameTime);
 
             base.Update(gameTime);
 
@@ -320,9 +341,28 @@ namespace KinectBats
                 l.p2.X = leftElbowPoint.X;
                 l.p2.Y = leftElbowPoint.Y;
                 l.Draw(spriteBatch);
-                
+
                 spriteBatch.Draw(marker, new Rectangle(leftHandPoint.X - 16, leftHandPoint.Y - 16, 32, 32), Color.White);
                 spriteBatch.Draw(marker, new Rectangle(leftElbowPoint.X - 16, leftElbowPoint.Y - 16, 32, 32), Color.White);
+            }
+            else
+            {
+                Console.WriteLine("Going:");
+                for (int i = 0; i < leftBodyVertices.Count; i++)
+                {
+                    Console.WriteLine(leftBodyVertices[i].X + ", " + leftBodyVertices[i].Y);
+                }
+
+                
+                Line currentLine = new Line(new Vector2(0, 0), new Vector2(ConvertUnits.ToDisplayUnits(leftBody.Position.X), ConvertUnits.ToDisplayUnits(leftBody.Position.Y)), 20, Color.Black, pixel);
+
+                currentLine.Update(gameTime);
+
+                currentLine.p1.X = 50;
+                currentLine.p1.Y = 50;
+                currentLine.p2.X = 150;
+                currentLine.p2.Y = 150;
+                currentLine.Draw(spriteBatch);
             }
 
             if (rightTracked)
@@ -330,8 +370,6 @@ namespace KinectBats
                 spriteBatch.Draw(marker2, new Rectangle(rightHandPoint.X - 16, rightHandPoint.Y - 16, 32, 32), Color.White);
                 spriteBatch.Draw(marker2, new Rectangle(rightElbowPoint.X - 16, rightElbowPoint.Y - 16, 32, 32), Color.White);
             }
-
-            
 
             spriteBatch.End();
 
