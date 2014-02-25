@@ -48,6 +48,43 @@ class Manufacturing(DataAccumulator):
         self.groups = Groups()
         self.groups.load_data()
         
+    def _get_for_unit_count(self, div):
+        for_unit_count = 1
+        for sub_div in div.find_all('div'):
+            if sub_div.get('class')[0] == 'displaylist_footer_multi':
+                digits = 3
+                while for_unit_count == 1 and digits > 0:
+                    try:
+                        for_unit_string = sub_div.find_all('span')[0].string[10:10 + digits]
+                        for_unit_count = int(for_unit_string)
+                    except ValueError, e:
+                        print "Could not find number" 
+                    
+                    digits -= 1
+                    
+        return for_unit_count
+        
+    def _get_components(self, div, for_unit_count):
+        components = {}
+        
+        dl = div.find_all('dl')[0]
+        for dt in dl.find_all('dt'):
+            spans = dt.find_all('span')
+            name_span = spans[0]
+            amount_span = spans[1]
+            
+            component_name = ""
+            component_url = name_span.find_all('a')[0].get('href')
+            component_type_id = get_typeid_from_url(component_url)
+            component_amount = float(amount_span.string)
+            
+            if for_unit_count > 1:
+                component_amount = float(component_amount) / float(for_unit_count)
+            
+            components[component_type_id] = Component(component_name, component_type_id, component_amount)
+        
+        return components
+        
     def _insert_entry_from_page_text(self, data_id, data_text):
         soup = BeautifulSoup(data_text)
         
@@ -95,42 +132,27 @@ class Manufacturing(DataAccumulator):
         for_unit_count = 1
         
         manufacturing_specified = False
+        reprocessing_specified = False
+        
         for div in soup.find_all('div'):
             for c in div.contents:
                 if c.name == 'h4' and c.string == 'Manufacturing':
                     # This should happen only once if there is a manufacturing bit
-                    
-                    for sub_div in div.find_all('div'):
-                        if sub_div.get('class')[0] == 'displaylist_footer_multi':
-                            digits = 3
-                            while for_unit_count == 1 and digits > 0:
-                                try:
-                                    for_unit_string = sub_div.find_all('span')[0].string[10:10 + digits]
-                                    for_unit_count = int(for_unit_string)
-                                except ValueError, e:
-                                    print "Could not find number" 
-                                
-                                digits -= 1
-                    
                     manufacturing_specified = True
-                    dl = div.find_all('dl')[0]
-                    for dt in dl.find_all('dt'):
-                        spans = dt.find_all('span')
-                        name_span = spans[0]
-                        amount_span = spans[1]
+                    for_unit_count = self._get_for_unit_count(div)
+                    manufactured_component.components = self._get_components(div, for_unit_count)
                         
-                        component_name = ""
-                        component_url = name_span.find_all('a')[0].get('href')
-                        component_type_id = get_typeid_from_url(component_url)
-                        component_amount = float(amount_span.string)
-                        
-                        if for_unit_count > 1:
-                            component_amount = float(component_amount) / float(for_unit_count)
-                        
-                        manufactured_component.components[component_type_id] = Component(component_name, component_type_id, component_amount)
+                if c.name == 'h4' and c.string == 'Reprocessing':
+                    # This should happen only once if there is a reprocessing bit
+                    reprocessing_specified = True
+                    for_unit_count = self._get_for_unit_count(div)
+                    manufactured_component.reprocessing = self._get_components(div, for_unit_count)
         
         if not manufacturing_specified:
             manufactured_component.components = {-1: Component("Empty", -1)}
+            
+        if not reprocessing_specified:
+            manufactured_component.reprocessing = {-1: Component("Empty", -1)}
 
         self.data[data_id] = manufactured_component
         
@@ -160,6 +182,43 @@ class Manufacturing(DataAccumulator):
             # Check if we need to recurse:
             sub_requirements = {}
             component = manufactured_component.components[component_id]
+            
+            if component_id != -1:
+                sub_requirements = self.get_full_requirements_dict(component_id)
+                if sub_requirements:
+                    # Add sub requirements
+                    for sub_id in sub_requirements:
+                        if sub_id in final_requirements.keys():
+                            final_requirements[sub_id] += sub_requirements[sub_id] * component.amount
+                        else:
+                            final_requirements[sub_id] = sub_requirements[sub_id] * component.amount
+                else:
+                    
+                    if component_id in final_requirements.keys():
+                        final_requirements[component_id] += component.amount
+                    else:
+                        final_requirements[component_id] = component.amount
+        
+        return final_requirements
+        
+    def get_full_reprocessing_dict(self, type_id):
+        
+        if type_id == -1:
+            return None
+        
+        if not self.data.has_key(type_id):
+            self.add_data(type_id)
+            
+        final_requirements = {}
+        if type_id not in self.data:
+            raise Exception("Requirement for " + str(type_id) + " not found!")
+        
+        reprocessed_component = self.data[type_id]
+        
+        for component_id in reprocessed_component.reprocessing.keys():
+            # Check if we need to recurse:
+            sub_requirements = {}
+            component = reprocessed_component.reprocessing[component_id]
             
             if component_id != -1:
                 sub_requirements = self.get_full_requirements_dict(component_id)
