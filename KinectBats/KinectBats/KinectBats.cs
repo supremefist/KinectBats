@@ -46,8 +46,7 @@ namespace KinectBats
         Texture2D marker2;
         Texture2D pixel;
         Texture2D armTexture;
-
-        Vector2 armOrigin;
+        Texture2D ballTexture;
 
         ColorImagePoint leftHandPoint;
         ColorImagePoint leftElbowPoint;
@@ -62,17 +61,20 @@ namespace KinectBats
         const DepthImageFormat depthFormat = DepthImageFormat.Resolution320x240Fps30;
         const ColorImageFormat colorFormat = ColorImageFormat.RgbResolution640x480Fps30;
 
-        VertexPositionColor[] vertices;
-        BasicEffect basicEffect;
-
         List<Body> bodies = new List<Body>();
         List<Texture2D> textures = new List<Texture2D>();
         List<Vector2> origins = new List<Vector2>();
 
-        Body leftHandTrackBody;
-        Body leftElbowTrackBody;
-
         Body leftArm;
+        FixedMouseJoint leftHandJoint;
+        FixedMouseJoint leftElbowJoint;
+
+        Body rightArm;
+        FixedMouseJoint rightHandJoint;
+        FixedMouseJoint rightElbowJoint;
+
+        Body ballBody = null;
+        Vector2 ballOrigin;
 
         public KinectBats()
         {
@@ -87,6 +89,46 @@ namespace KinectBats
             graphics.ApplyChanges();
 
             Content.RootDirectory = "Content";
+        }
+
+        public void resetBall()
+        {
+            if (ballBody != null)
+            {
+                world.RemoveBody(ballBody);
+                ballBody = null;
+            }
+
+            //Create an array to hold the data from the texture
+            uint[] data = new uint[ballTexture.Width * ballTexture.Height];
+
+            //Transfer the texture data to the array
+            ballTexture.GetData(data);
+
+            //Find the vertices that makes up the outline of the shape in the texture
+            Vertices textureVertices = PolygonTools.CreatePolygon(data, ballTexture.Width, false);
+
+            Vector2 centroid = -textureVertices.GetCentroid();
+            textureVertices.Translate(ref centroid);
+
+            
+            ballOrigin = -centroid;
+
+            //We simplify the vertices found in the texture.
+            textureVertices = SimplifyTools.ReduceByDistance(textureVertices, 4f);
+            float scale = 1.0f;
+            Vector2 vertScale = new Vector2(ConvertUnits.ToSimUnits(1)) * scale;
+            textureVertices.Scale(vertScale);
+
+            //Create a single body with multiple fixtures
+            ballBody = BodyFactory.CreatePolygon(world, textureVertices, 1f, BodyType.Dynamic);
+            ballBody.CollisionGroup = 0;
+            ballBody.Position = new Vector2(worldSimWidth / 2, worldSimWidth / 5);
+
+            ballBody.BodyType = BodyType.Dynamic;
+            ballBody.Restitution = 1.0f;
+            ballBody.Friction = 0.0f;
+
         }
 
         /// <summary>
@@ -109,7 +151,17 @@ namespace KinectBats
                     {
                         kinect.ColorStream.Enable(colorFormat);
                         kinect.DepthStream.Enable(depthFormat);
-                        kinect.SkeletonStream.Enable();
+
+                        TransformSmoothParameters smoothingParam = new TransformSmoothParameters();
+                        {
+                            smoothingParam.Smoothing = 0.5f;
+                            smoothingParam.Correction = 0.5f;
+                            smoothingParam.Prediction = 0.5f;
+                            smoothingParam.JitterRadius = 0.05f;
+                            smoothingParam.MaxDeviationRadius = 0.04f;
+                        };
+                        
+                        kinect.SkeletonStream.Enable(smoothingParam);
 
                         kinect.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(kinect_AllFramesReady);
 
@@ -369,23 +421,24 @@ namespace KinectBats
             marker = this.Content.Load<Texture2D>("marker");
             marker2 = this.Content.Load<Texture2D>("marker2");
             armTexture = this.Content.Load<Texture2D>("arm");
+            ballTexture = this.Content.Load<Texture2D>("ball");
             
 
             world = new World(new Vector2(0, 10f));
             
-            addObjectFromTexture(armTexture, worldSimWidth / 2, 0.05f, true);
+            // Left
+            leftArm = addRectangleObject(1.0f, 0.2f, 6.5f, 0.5f, true);
+            leftHandJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
+            leftHandJoint.LocalAnchorA = new Vector2(-0.4f, 0f);
+            leftElbowJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
+            leftElbowJoint.LocalAnchorA = new Vector2(0.4f, 0f);
 
-            //addObjectFromTexture(armTexture, worldSimWidth / 2, worldSimHeight - 0.05f, false);
-
-            leftArm = addObjectFromTexture(armTexture, 0.5f, 0.5f, true);
-            
-            leftHandTrackBody = addRectangleObject(0.1f, 0.1f, 2f, 2f, false);
-            leftHandTrackBody.CollisionGroup = 1;
-            RevoluteJoint joint = JointFactory.CreateRevoluteJoint(world, leftArm, leftHandTrackBody, new Vector2(-0.8f, 0f), Vector2.Zero);
-            
-            leftElbowTrackBody = addRectangleObject(0.1f, 0.1f, 2.5f, 2.5f, false);
-            leftElbowTrackBody.CollisionGroup = 1;
-            joint = JointFactory.CreateRevoluteJoint(world, leftArm, leftElbowTrackBody, new Vector2(0.8f, 0f), Vector2.Zero);
+            // Right
+            rightArm = addRectangleObject(1.0f, 0.2f, 0.5f, 0.5f, true);
+            rightHandJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
+            rightHandJoint.LocalAnchorA = new Vector2(-0.4f, 0f);
+            rightElbowJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
+            rightElbowJoint.LocalAnchorA = new Vector2(0.4f, 0f);
             
             // Add terrain
             float wallWidth = 0.05f;
@@ -396,7 +449,9 @@ namespace KinectBats
             addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, worldSimHeight - wallWidth / 2, false);
 
             // Add net
-            addRectangleObject(0.2f, worldSimHeight * 0.6f, worldSimWidth / 2, worldSimHeight * 0.7f, false);
+            addRectangleObject(0.2f, worldSimHeight * 0.6f, worldSimWidth / 2, worldSimHeight * 1.0f, false);
+
+            resetBall();
         }
 
         /// <summary>
@@ -419,15 +474,22 @@ namespace KinectBats
             if ((Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.Escape)) || (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed))
                 this.Exit();
 
+            var scale = ConvertUnits.ToDisplayUnits(worldSimWidth) / 640f;
+
             if (leftTracked)
             {
-                var scale = ConvertUnits.ToDisplayUnits(worldSimWidth) / 640f;
-
                 Vector2 leftHandPosition = new Vector2(ConvertUnits.ToSimUnits(leftHandPoint.X * scale), ConvertUnits.ToSimUnits(leftHandPoint.Y * scale));
-                leftHandTrackBody.Position = leftHandPosition;
-
+                leftHandJoint.WorldAnchorB = leftHandPosition;
                 Vector2 leftElbowPosition = new Vector2(ConvertUnits.ToSimUnits(leftElbowPoint.X * scale), ConvertUnits.ToSimUnits(leftElbowPoint.Y * scale));
-                leftElbowTrackBody.Position = leftElbowPosition;
+                leftElbowJoint.WorldAnchorB = leftElbowPosition;
+            }
+
+            if (rightTracked)
+            {
+                Vector2 rightHandPosition = new Vector2(ConvertUnits.ToSimUnits(rightHandPoint.X * scale), ConvertUnits.ToSimUnits(rightHandPoint.Y * scale));
+                rightHandJoint.WorldAnchorB = rightHandPosition;
+                Vector2 rightElbowPosition = new Vector2(ConvertUnits.ToSimUnits(rightElbowPoint.X * scale), ConvertUnits.ToSimUnits(rightElbowPoint.Y * scale));
+                rightElbowJoint.WorldAnchorB = rightElbowPosition;
             }
 
             // variable time step but never less then 30 Hz
@@ -465,6 +527,11 @@ namespace KinectBats
                 Vector2 o = origins[i];
 
                 spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, Color.White, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
+            }
+
+            if (ballBody != null)
+            {
+                spriteBatch.Draw(ballTexture, ConvertUnits.ToDisplayUnits(ballBody.Position), null, Color.White, ballBody.Rotation, ballOrigin, 1.0f, SpriteEffects.None, 0f);
             }
 
             spriteBatch.End();
