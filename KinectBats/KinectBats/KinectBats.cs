@@ -15,6 +15,7 @@ using FarseerPhysics;
 using FarseerPhysics.Dynamics;
 using FarseerPhysics.Factories;
 using FarseerPhysics.Common;
+using FarseerPhysics.Common.PolygonManipulation;
 
 using Microsoft.Kinect;
 
@@ -29,6 +30,9 @@ namespace KinectBats
         Body leftBody;
         Vertices leftBodyVertices;
 
+        float worldSimWidth = 8f;
+        float worldSimHeight = 6f;
+
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
         KinectSensor kinect;
@@ -42,6 +46,9 @@ namespace KinectBats
         Texture2D marker;
         Texture2D marker2;
         Texture2D pixel;
+        Texture2D armTexture;
+
+        Vector2 armOrigin;
 
         ColorImagePoint leftHandPoint;
         ColorImagePoint leftElbowPoint;
@@ -59,9 +66,22 @@ namespace KinectBats
         VertexPositionColor[] vertices;
         BasicEffect basicEffect;
 
+        List<Body> bodies = new List<Body>();
+        List<Texture2D> textures = new List<Texture2D>();
+        List<Vector2> origins = new List<Vector2>();
+
         public KinectBats()
         {
+            // 1 meter = 64 pixels
+            ConvertUnits.SetDisplayUnitToSimUnitRatio(128f);
+
             graphics = new GraphicsDeviceManager(this);
+            graphics.IsFullScreen = false;
+            graphics.PreferredBackBufferHeight = (int)ConvertUnits.ToDisplayUnits(worldSimHeight);
+            graphics.PreferredBackBufferWidth = (int)ConvertUnits.ToDisplayUnits(worldSimWidth);
+            //Changes the settings that you just applied
+            graphics.ApplyChanges();
+
             Content.RootDirectory = "Content";
         }
 
@@ -73,9 +93,6 @@ namespace KinectBats
         /// </summary>
         protected override void Initialize()
         {
-
-            // 1 meter = 64 pixels
-            ConvertUnits.SetDisplayUnitToSimUnitRatio(64f);
 
             try
             {
@@ -147,6 +164,70 @@ namespace KinectBats
             }
         }
 
+        private void addRectangleObject(float width, float height, float x, float y, bool dynamic)
+        {
+
+            int pixelWidth = (int)Math.Round(ConvertUnits.ToDisplayUnits(width));
+            int pixelHeight = (int)Math.Round(ConvertUnits.ToDisplayUnits(height));
+            Texture2D rectangleTexture = new Texture2D(graphics.GraphicsDevice, pixelWidth, pixelHeight);
+            // Create a color array for the pixels
+            Color[] colors = new Color[pixelWidth * pixelHeight];
+            for (int i = 0; i < colors.Length; i++)
+            {
+                colors[i] = new Color(Color.White.ToVector3());
+            }
+
+            // Set the color data for the texture
+            rectangleTexture.SetData(colors);
+
+            addObjectFromTexture(rectangleTexture, x, y, dynamic);
+        }
+
+        private void addObjectFromTexture(Texture2D texture, float x, float y, bool dynamic)
+        {
+            //Create an array to hold the data from the texture
+            uint[] data = new uint[texture.Width * texture.Height];
+
+            //Transfer the texture data to the array
+            texture.GetData(data);
+
+            //Find the vertices that makes up the outline of the shape in the texture
+            Vertices textureVertices = PolygonTools.CreatePolygon(data, texture.Width, false);
+
+            //The tool return vertices as they were found in the texture.
+            //We need to find the real center (centroid) of the vertices for 2 reasons:
+
+            //1. To translate the vertices so the polygon is centered around the centroid.
+            Vector2 centroid = -textureVertices.GetCentroid();
+            textureVertices.Translate(ref centroid);
+
+            //2. To draw the texture the correct place.
+            var objectOrigin = -centroid;
+
+            //We simplify the vertices found in the texture.
+            textureVertices = SimplifyTools.ReduceByDistance(textureVertices, 4f);
+            float scale = 1.0f;
+            Vector2 vertScale = new Vector2(ConvertUnits.ToSimUnits(1)) * scale;
+            textureVertices.Scale(vertScale);
+
+            //Create a single body with multiple fixtures
+            var body = BodyFactory.CreatePolygon(world, textureVertices, 1000f, BodyType.Dynamic);
+            body.Position = new Vector2(x, y);
+
+            if (dynamic)
+            {
+                body.BodyType = BodyType.Dynamic;
+            }
+            else
+            {
+                body.BodyType = BodyType.Static;
+            }
+
+            bodies.Add(body);
+            textures.Add(texture);
+            origins.Add(objectOrigin);
+        }
+        
         private byte[] ConvertDepthFrame(short[] depthFrame, DepthImageStream depthStream)
         {
             int RedIndex = 0, GreenIndex = 1, BlueIndex = 2, AlphaIndex = 3;
@@ -264,6 +345,8 @@ namespace KinectBats
             }
         }
 
+        
+
         /// <summary>
         /// LoadContent will be called once per game and is the place to load
         /// all of your content.
@@ -277,15 +360,25 @@ namespace KinectBats
             pixel = this.Content.Load<Texture2D>("pixel");
             marker = this.Content.Load<Texture2D>("marker");
             marker2 = this.Content.Load<Texture2D>("marker2");
+            armTexture = this.Content.Load<Texture2D>("arm");
+            
 
             world = new World(new Vector2(0, 10f));
-
-            leftBodyVertices = PolygonTools.CreateRectangle(ConvertUnits.ToSimUnits(100), ConvertUnits.ToSimUnits(20));
-            leftBody = BodyFactory.CreatePolygon(world, leftBodyVertices, 1f);
             
-            //leftBody = BodyFactory.CreateRectangle(world, ConvertUnits.ToSimUnits(100), ConvertUnits.ToSimUnits(20), 1f);
-            leftBody.BodyType = BodyType.Dynamic;
-            leftBody.Position = new Vector2(ConvertUnits.ToSimUnits(100), ConvertUnits.ToSimUnits(100));
+            addObjectFromTexture(armTexture, worldSimWidth / 2, 0.05f, true);
+
+            //addObjectFromTexture(armTexture, worldSimWidth / 2, worldSimHeight - 0.05f, false);
+
+            // Add terrain
+            float wallWidth = 0.05f;
+            addRectangleObject(wallWidth, worldSimHeight, wallWidth / 2, worldSimHeight / 2, false);
+            addRectangleObject(wallWidth, worldSimHeight, worldSimWidth - wallWidth / 2, worldSimHeight / 2, false);
+
+            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, wallWidth / 2, false);
+            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, worldSimHeight - wallWidth / 2, false);
+
+            // Add net
+            addRectangleObject(0.2f, worldSimHeight * 0.6f, worldSimWidth / 2, worldSimHeight * 0.7f, false);
         }
 
         /// <summary>
@@ -331,10 +424,13 @@ namespace KinectBats
             // Draw RGB video
             if (colorVideo != null)
             {
-                spriteBatch.Draw(colorVideo, new Rectangle(0, 0, 640, 480), Color.White);
+                var scale = ConvertUnits.ToDisplayUnits(worldSimWidth) / 640f;
+
+                spriteBatch.Draw(colorVideo, Vector2.Zero, null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
 
-            if (leftTracked)
+            //if (leftTracked)
+            if (false)
             {
                 l.p1.X = leftHandPoint.X;
                 l.p1.Y = leftHandPoint.Y;
@@ -347,22 +443,16 @@ namespace KinectBats
             }
             else
             {
-                Console.WriteLine("Going:");
-                for (int i = 0; i < leftBodyVertices.Count; i++)
-                {
-                    Console.WriteLine(leftBodyVertices[i].X + ", " + leftBodyVertices[i].Y);
+                for (int i = 0; i < bodies.Count; i++) {
+                    Body b = bodies[i];
+                    Texture2D t = textures[i];
+                    Vector2 o = origins[i];
+
+                    Console.WriteLine(b.Position);
+
+                    spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, Color.Tomato, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
                 }
-
                 
-                Line currentLine = new Line(new Vector2(0, 0), new Vector2(ConvertUnits.ToDisplayUnits(leftBody.Position.X), ConvertUnits.ToDisplayUnits(leftBody.Position.Y)), 20, Color.Black, pixel);
-
-                currentLine.Update(gameTime);
-
-                currentLine.p1.X = 50;
-                currentLine.p1.Y = 50;
-                currentLine.p2.X = 150;
-                currentLine.p2.Y = 150;
-                currentLine.Draw(spriteBatch);
             }
 
             if (rightTracked)
@@ -383,7 +473,7 @@ namespace KinectBats
                 return;
             }
 
-            if (sensor.SkeletonStream.IsEnabled)
+            if ((sensor.SkeletonStream != null) && (sensor.SkeletonStream.IsEnabled))
             {
                 sensor.SkeletonStream.Disable();
             }
