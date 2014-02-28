@@ -16,6 +16,7 @@ using FarseerPhysics.Dynamics;
 using FarseerPhysics.Factories;
 using FarseerPhysics.Common;
 using FarseerPhysics.Common.PolygonManipulation;
+using FarseerPhysics.Dynamics.Joints;
 
 using Microsoft.Kinect;
 
@@ -27,9 +28,7 @@ namespace KinectBats
     public class KinectBats : Game
     {
         World world;
-        Body leftBody;
-        Vertices leftBodyVertices;
-
+        
         float worldSimWidth = 8f;
         float worldSimHeight = 6f;
 
@@ -69,6 +68,11 @@ namespace KinectBats
         List<Body> bodies = new List<Body>();
         List<Texture2D> textures = new List<Texture2D>();
         List<Vector2> origins = new List<Vector2>();
+
+        Body leftHandTrackBody;
+        Body leftElbowTrackBody;
+
+        Body leftArm;
 
         public KinectBats()
         {
@@ -164,7 +168,7 @@ namespace KinectBats
             }
         }
 
-        private void addRectangleObject(float width, float height, float x, float y, bool dynamic)
+        private Body addRectangleObject(float width, float height, float x, float y, bool dynamic)
         {
 
             int pixelWidth = (int)Math.Round(ConvertUnits.ToDisplayUnits(width));
@@ -180,10 +184,10 @@ namespace KinectBats
             // Set the color data for the texture
             rectangleTexture.SetData(colors);
 
-            addObjectFromTexture(rectangleTexture, x, y, dynamic);
+            return addObjectFromTexture(rectangleTexture, x, y, dynamic);
         }
 
-        private void addObjectFromTexture(Texture2D texture, float x, float y, bool dynamic)
+        private Body addObjectFromTexture(Texture2D texture, float x, float y, bool dynamic)
         {
             //Create an array to hold the data from the texture
             uint[] data = new uint[texture.Width * texture.Height];
@@ -211,7 +215,8 @@ namespace KinectBats
             textureVertices.Scale(vertScale);
 
             //Create a single body with multiple fixtures
-            var body = BodyFactory.CreatePolygon(world, textureVertices, 1000f, BodyType.Dynamic);
+            var body = BodyFactory.CreatePolygon(world, textureVertices, 1f, BodyType.Dynamic);
+            body.CollisionGroup = 0;
             body.Position = new Vector2(x, y);
 
             if (dynamic)
@@ -226,6 +231,8 @@ namespace KinectBats
             bodies.Add(body);
             textures.Add(texture);
             origins.Add(objectOrigin);
+
+            return body;
         }
         
         private byte[] ConvertDepthFrame(short[] depthFrame, DepthImageStream depthStream)
@@ -321,15 +328,13 @@ namespace KinectBats
                 }
 
                 bool tracked = true;
-                if ((s.Joints[JointType.HandLeft].TrackingState != JointTrackingState.Tracked) || (s.Joints[JointType.HandLeft].TrackingState != JointTrackingState.Tracked))
+                if ((s.Joints[Microsoft.Kinect.JointType.HandLeft].TrackingState != JointTrackingState.Tracked) || (s.Joints[Microsoft.Kinect.JointType.HandLeft].TrackingState != JointTrackingState.Tracked))
                 {
                     tracked = false;
-                    Console.WriteLine(tracked);
-                    
                 }
 
-                DepthImagePoint leftHandDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[JointType.HandLeft].Position, depthFormat);
-                DepthImagePoint leftElbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[JointType.ElbowLeft].Position, depthFormat);
+                DepthImagePoint leftHandDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.HandLeft].Position, depthFormat);
+                DepthImagePoint leftElbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.ElbowLeft].Position, depthFormat);
 
                 if (index == 0)
                 {
@@ -345,7 +350,10 @@ namespace KinectBats
             }
         }
 
-        
+        private void JointBroke(object sender, EventArgs e)
+        {
+            Console.WriteLine("BROKEN");
+        }
 
         /// <summary>
         /// LoadContent will be called once per game and is the place to load
@@ -369,6 +377,16 @@ namespace KinectBats
 
             //addObjectFromTexture(armTexture, worldSimWidth / 2, worldSimHeight - 0.05f, false);
 
+            leftArm = addObjectFromTexture(armTexture, 0.5f, 0.5f, true);
+            
+            leftHandTrackBody = addRectangleObject(0.1f, 0.1f, 2f, 2f, false);
+            leftHandTrackBody.CollisionGroup = 1;
+            RevoluteJoint joint = JointFactory.CreateRevoluteJoint(world, leftArm, leftHandTrackBody, new Vector2(-0.8f, 0f), Vector2.Zero);
+            
+            leftElbowTrackBody = addRectangleObject(0.1f, 0.1f, 2.5f, 2.5f, false);
+            leftElbowTrackBody.CollisionGroup = 1;
+            joint = JointFactory.CreateRevoluteJoint(world, leftArm, leftElbowTrackBody, new Vector2(0.8f, 0f), Vector2.Zero);
+            
             // Add terrain
             float wallWidth = 0.05f;
             addRectangleObject(wallWidth, worldSimHeight, wallWidth / 2, worldSimHeight / 2, false);
@@ -401,6 +419,17 @@ namespace KinectBats
             if ((Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.Escape)) || (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed))
                 this.Exit();
 
+            if (leftTracked)
+            {
+                var scale = ConvertUnits.ToDisplayUnits(worldSimWidth) / 640f;
+
+                Vector2 leftHandPosition = new Vector2(ConvertUnits.ToSimUnits(leftHandPoint.X * scale), ConvertUnits.ToSimUnits(leftHandPoint.Y * scale));
+                leftHandTrackBody.Position = leftHandPosition;
+
+                Vector2 leftElbowPosition = new Vector2(ConvertUnits.ToSimUnits(leftElbowPoint.X * scale), ConvertUnits.ToSimUnits(leftElbowPoint.Y * scale));
+                leftElbowTrackBody.Position = leftElbowPosition;
+            }
+
             // variable time step but never less then 30 Hz
             world.Step(Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, (1f / 30f)));
 
@@ -429,36 +458,13 @@ namespace KinectBats
                 spriteBatch.Draw(colorVideo, Vector2.Zero, null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
 
-            //if (leftTracked)
-            if (false)
+            for (int i = 0; i < bodies.Count; i++)
             {
-                l.p1.X = leftHandPoint.X;
-                l.p1.Y = leftHandPoint.Y;
-                l.p2.X = leftElbowPoint.X;
-                l.p2.Y = leftElbowPoint.Y;
-                l.Draw(spriteBatch);
+                Body b = bodies[i];
+                Texture2D t = textures[i];
+                Vector2 o = origins[i];
 
-                spriteBatch.Draw(marker, new Rectangle(leftHandPoint.X - 16, leftHandPoint.Y - 16, 32, 32), Color.White);
-                spriteBatch.Draw(marker, new Rectangle(leftElbowPoint.X - 16, leftElbowPoint.Y - 16, 32, 32), Color.White);
-            }
-            else
-            {
-                for (int i = 0; i < bodies.Count; i++) {
-                    Body b = bodies[i];
-                    Texture2D t = textures[i];
-                    Vector2 o = origins[i];
-
-                    Console.WriteLine(b.Position);
-
-                    spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, Color.Tomato, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
-                }
-                
-            }
-
-            if (rightTracked)
-            {
-                spriteBatch.Draw(marker2, new Rectangle(rightHandPoint.X - 16, rightHandPoint.Y - 16, 32, 32), Color.White);
-                spriteBatch.Draw(marker2, new Rectangle(rightElbowPoint.X - 16, rightElbowPoint.Y - 16, 32, 32), Color.White);
+                spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, Color.White, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
             }
 
             spriteBatch.End();
