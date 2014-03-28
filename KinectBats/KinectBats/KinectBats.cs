@@ -21,6 +21,7 @@ using FarseerPhysics.Factories;
 using FarseerPhysics.Common;
 using FarseerPhysics.Common.PolygonManipulation;
 using FarseerPhysics.Dynamics.Joints;
+using FarseerPhysics.Collision.Shapes;
 
 using Microsoft.Kinect;
 
@@ -95,6 +96,7 @@ namespace KinectBats
         FixedMouseJoint rightElbowJoint;
 
         Body ballBody = null;
+        CircleShape ballShape;
         Vector2 ballOrigin;
 
         SoundEffect acknowledgeSound;
@@ -163,7 +165,6 @@ namespace KinectBats
 
             Vector2 centroid = -textureVertices.GetCentroid();
             textureVertices.Translate(ref centroid);
-
             
             ballOrigin = -centroid;
 
@@ -174,13 +175,13 @@ namespace KinectBats
             textureVertices.Scale(vertScale);
 
             //Create a single body with multiple fixtures
-            ballBody = BodyFactory.CreatePolygon(world, textureVertices, 1f, BodyType.Dynamic);
-            ballBody.CollisionGroup = 0;
-            ballBody.Position = new Vector2(worldSimWidth / 2, worldSimWidth / 5);
-
+            ballBody = BodyFactory.CreateBody(world);
             ballBody.BodyType = BodyType.Dynamic;
+            ballBody.Position = new Vector2(worldSimWidth / 2, worldSimWidth / 5);
+            Fixture temp = ballBody.CreateFixture(ballShape);
+
             ballBody.Restitution = 0.95f;
-            //ballBody.Friction = 0.0f;
+            ballBody.Friction = 0.95f;
         }
 
         private void startAudio(KinectSensor sensor)
@@ -621,7 +622,9 @@ namespace KinectBats
             marker2 = this.Content.Load<Texture2D>("marker2");
             armTexture = this.Content.Load<Texture2D>("arm");
             ballTexture = this.Content.Load<Texture2D>("ball");
-            
+
+
+            ballShape = new CircleShape(ConvertUnits.ToSimUnits(ballTexture.Width) / 2, 1f);
 
             world = new World(new Vector2(0, 10f));
 
