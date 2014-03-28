@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
 
+using System.Speech.AudioFormat;
+using System.Speech.Recognition;
+using System.IO;
+
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Content;
@@ -28,9 +32,13 @@ namespace KinectBats
     public class KinectBats : Game
     {
         World world;
+
+        private SpeechRecognitionEngine speechRecognizer;
         
         float worldSimWidth = 8f;
         float worldSimHeight = 6f;
+
+        DateTime lastAcknowledgeTime;
 
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
@@ -76,6 +84,10 @@ namespace KinectBats
         Body ballBody = null;
         Vector2 ballOrigin;
 
+        Song acknowledgeSound;
+        Song affirmativeSound;
+        Song bogusSound;
+
         public KinectBats()
         {
             // 1 meter = 64 pixels
@@ -89,6 +101,29 @@ namespace KinectBats
             graphics.ApplyChanges();
 
             Content.RootDirectory = "Content";
+
+            lastAcknowledgeTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            acknowledgeSound = Content.Load<Song>("communications_start_transmission");
+            affirmativeSound = Content.Load<Song>("affirmative1_ep");
+            bogusSound = Content.Load<Song>("donotaddressthisunitinthatmanner_clean");
+            
+
+        }
+
+        private static RecognizerInfo GetKinectRecognizer()
+        {
+            Func<RecognizerInfo, bool> matchingFunc = r =>
+            {
+                return "en-GB".Equals(r.Culture.Name, StringComparison.InvariantCultureIgnoreCase);
+            };
+
+            RecognizerInfo result = SpeechRecognitionEngine.InstalledRecognizers().Where(matchingFunc).FirstOrDefault();
+            if (result == null)
+            {
+                Console.WriteLine("No recogniser found");
+            }
+            return result;
         }
 
         public void resetBall()
@@ -131,6 +166,139 @@ namespace KinectBats
 
         }
 
+        private void startAudio(KinectSensor sensor)
+        {
+            Console.WriteLine("Starting audo...");
+
+            //set sensor audio source to variable
+            var audioSource = sensor.AudioSource;
+            //Set the beam angle mode - the direction the audio beam is pointing
+            //we want it to be set to adaptive
+            audioSource.BeamAngleMode = BeamAngleMode.Adaptive;
+            //start the audiosource 
+            var kinectStream = audioSource.Start();
+
+            Console.WriteLine("Started...");
+
+            speechRecognizer = CreateSpeechRecognizer();
+
+            Console.WriteLine("Created recogniser.");
+
+            //configure incoming audio stream
+            speechRecognizer.SetInputToAudioStream(
+                kinectStream, new SpeechAudioFormatInfo(EncodingFormat.Pcm, 16000, 16, 1, 32000, 2, null));
+            //make sure the recognizer does not stop after completing     
+            speechRecognizer.RecognizeAsync(RecognizeMode.Multiple);
+            //reduce background and ambient noise for better accuracy
+            sensor.AudioSource.EchoCancellationMode = EchoCancellationMode.None;
+            sensor.AudioSource.AutomaticGainControlEnabled = false;
+
+            
+
+            Console.WriteLine("GO");
+        }
+
+        private void RejectSpeech(RecognitionResult result)
+        {
+            Console.WriteLine("Pardon Moi?");
+        }
+
+        private void SreSpeechRecognitionRejected(object sender, SpeechRecognitionRejectedEventArgs e)
+        {
+            RejectSpeech(e.Result);
+        }
+
+        //hypothesized result
+        private void SreSpeechHypothesized(object sender, SpeechHypothesizedEventArgs e)
+        {
+            Console.WriteLine("Hypothesized: " + e.Result.Text + " " + e.Result.Confidence);
+        }
+
+        //Speech is recognised
+        private void SreSpeechRecognized(object sender, SpeechRecognizedEventArgs e)
+        {
+            //Very important! - change this value to adjust accuracy - the higher the value
+            //the more accurate it will have to be, lower it if it is not recognizing you
+
+            if (e.Result.Confidence < .4)
+            {
+                lastAcknowledgeTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+                MediaPlayer.Play(bogusSound);
+                
+                RejectSpeech(e.Result);
+
+                return;
+            }
+
+            //and finally, here we set what we want to happen when 
+            //the SRE recognizes a word
+            String word = e.Result.Text.ToUpperInvariant();
+            TimeSpan timeDiff = DateTime.Now - lastAcknowledgeTime;
+
+            Console.WriteLine(timeDiff);
+
+            if (word == "COMPUTER") {
+                MediaPlayer.Play(acknowledgeSound);
+                lastAcknowledgeTime = DateTime.Now;
+            }
+            else if (timeDiff.TotalSeconds < 5) {
+                if (word == "EXIT")
+                {
+                    MediaPlayer.Play(affirmativeSound); 
+                    this.Exit();
+                }
+                else if (word == "RESET GAME")
+                {
+                    MediaPlayer.Play(affirmativeSound);
+                    Console.WriteLine("Resetting...");
+                }
+                else if (word == "SHUT UP")
+                {
+                    MediaPlayer.Play(bogusSound);
+                }
+
+                lastAcknowledgeTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            }
+
+            
+        }
+
+
+        //here is the fun part: create the speech recognizer
+        private SpeechRecognitionEngine CreateSpeechRecognizer()
+        {
+            //set recognizer info
+            RecognizerInfo ri = GetKinectRecognizer();
+
+            //create instance of SRE
+
+            SpeechRecognitionEngine sre;
+            sre = new SpeechRecognitionEngine(ri.Id);
+
+            //Now we need to add the words we want our program to recognise
+            var grammar = new Choices();
+            grammar.Add("computer");
+            grammar.Add("exit");
+            grammar.Add("reset game");
+            grammar.Add("shut up");
+
+            //set culture - language, country/region
+            var gb = new GrammarBuilder { Culture = ri.Culture };
+            gb.Append(grammar);
+
+            //set up the grammar builder
+            var g = new Grammar(gb);
+            sre.LoadGrammar(g);
+
+            //Set events for recognizing, hypothesising and rejecting speech
+            sre.SpeechRecognized += SreSpeechRecognized;
+            sre.SpeechHypothesized += SreSpeechHypothesized;
+            sre.SpeechRecognitionRejected += SreSpeechRecognitionRejected;
+
+            return sre;
+        }
+
         /// <summary>
         /// Allows the game to perform any initialization it needs to before starting to run.
         /// This is where it can query for any required services and load any non-graphic
@@ -169,6 +337,8 @@ namespace KinectBats
 
                         cm = new CoordinateMapper(kinect);
                         Debug.WriteLineIf(debugging, kinect.Status);
+
+                        startAudio(kinect);
                     }
 
                     
@@ -551,12 +721,12 @@ namespace KinectBats
                 sensor.SkeletonStream.Disable();
             }
 
-            if (sensor.ColorStream.IsEnabled)
+            if ((sensor.ColorStream != null) && (sensor.ColorStream.IsEnabled))
             {
                 sensor.ColorStream.Disable();
             }
 
-            if (sensor.DepthStream.IsEnabled)
+            if ((sensor.DepthStream != null) && (sensor.DepthStream.IsEnabled))
             {
                 sensor.DepthStream.Disable();
             }
