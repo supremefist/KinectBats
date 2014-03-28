@@ -46,9 +46,20 @@ namespace KinectBats
         Texture2D colorVideo, depthVideo;
         Boolean debugging = true;
         Boolean done = false;
+        Boolean commandExecuted = false;
         const int skeletonCount = 6;
         Skeleton[] allSkeletons = new Skeleton[skeletonCount];
         CoordinateMapper cm;
+
+        int leftScore = 0;
+        int rightScore = 0;
+
+        int targetScore = 6;
+
+        SpriteFont font;
+
+        Grammar selectGrammar;
+        Grammar startGrammar;
 
         Texture2D marker;
         Texture2D marker2;
@@ -73,6 +84,8 @@ namespace KinectBats
         List<Texture2D> textures = new List<Texture2D>();
         List<Vector2> origins = new List<Vector2>();
 
+        Boolean listening = false;
+
         Body leftArm;
         FixedMouseJoint leftHandJoint;
         FixedMouseJoint leftElbowJoint;
@@ -84,14 +97,16 @@ namespace KinectBats
         Body ballBody = null;
         Vector2 ballOrigin;
 
-        Song acknowledgeSound;
-        Song affirmativeSound;
-        Song bogusSound;
+        SoundEffect acknowledgeSound;
+        SoundEffect affirmativeSound;
+        SoundEffect bogusSound;
+        SoundEffect goalSound;
+        SoundEffect awaitingSound;
 
         public KinectBats()
         {
             // 1 meter = 64 pixels
-            ConvertUnits.SetDisplayUnitToSimUnitRatio(128f);
+            ConvertUnits.SetDisplayUnitToSimUnitRatio(160f);
 
             graphics = new GraphicsDeviceManager(this);
             graphics.IsFullScreen = false;
@@ -103,11 +118,6 @@ namespace KinectBats
             Content.RootDirectory = "Content";
 
             lastAcknowledgeTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-            acknowledgeSound = Content.Load<Song>("communications_start_transmission");
-            affirmativeSound = Content.Load<Song>("affirmative1_ep");
-            bogusSound = Content.Load<Song>("donotaddressthisunitinthatmanner_clean");
-            
 
         }
 
@@ -124,6 +134,14 @@ namespace KinectBats
                 Console.WriteLine("No recogniser found");
             }
             return result;
+        }
+
+        public void resetGame()
+        {
+            leftScore = 0;
+            rightScore = 0;
+
+            resetBall();
         }
 
         public void resetBall()
@@ -161,9 +179,8 @@ namespace KinectBats
             ballBody.Position = new Vector2(worldSimWidth / 2, worldSimWidth / 5);
 
             ballBody.BodyType = BodyType.Dynamic;
-            ballBody.Restitution = 1.0f;
-            ballBody.Friction = 0.0f;
-
+            ballBody.Restitution = 0.95f;
+            //ballBody.Friction = 0.0f;
         }
 
         private void startAudio(KinectSensor sensor)
@@ -220,47 +237,53 @@ namespace KinectBats
             //Very important! - change this value to adjust accuracy - the higher the value
             //the more accurate it will have to be, lower it if it is not recognizing you
 
-            if (e.Result.Confidence < .4)
+            if (e.Result.Confidence < .1)
             {
                 lastAcknowledgeTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-                MediaPlayer.Play(bogusSound);
+                //MediaPlayer.Play(bogusSound);
                 
                 RejectSpeech(e.Result);
-
-                return;
             }
 
+            
             //and finally, here we set what we want to happen when 
             //the SRE recognizes a word
             String word = e.Result.Text.ToUpperInvariant();
-            TimeSpan timeDiff = DateTime.Now - lastAcknowledgeTime;
-
-            Console.WriteLine(timeDiff);
-
+            
             if (word == "COMPUTER") {
-                MediaPlayer.Play(acknowledgeSound);
+                acknowledgeSound.Play();
                 lastAcknowledgeTime = DateTime.Now;
-            }
-            else if (timeDiff.TotalSeconds < 5) {
-                if (word == "EXIT")
-                {
-                    MediaPlayer.Play(affirmativeSound); 
-                    this.Exit();
-                }
-                else if (word == "RESET GAME")
-                {
-                    MediaPlayer.Play(affirmativeSound);
-                    Console.WriteLine("Resetting...");
-                }
-                else if (word == "SHUT UP")
-                {
-                    MediaPlayer.Play(bogusSound);
-                }
 
-                lastAcknowledgeTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            }
+                speechRecognizer.RequestRecognizerUpdate();
+                speechRecognizer.UnloadAllGrammars();
+                speechRecognizer.LoadGrammarAsync(selectGrammar);
 
+                listening = true;
+            }
+            else if (word == "EXIT")
+            {
+                affirmativeSound.Play();
+                this.Exit();
+                commandExecuted = true;
+            }
+            else if (word == "RESET BALL")
+            {
+                affirmativeSound.Play();
+                resetBall();
+                commandExecuted = true;
+            }
+            else if (word == "RESTART")
+            {
+                affirmativeSound.Play();
+                resetGame();
+                commandExecuted = true;
+            }
+            else if (word == "SHUT UP")
+            {
+                bogusSound.Play();
+                commandExecuted = true;
+            }
             
         }
 
@@ -272,24 +295,30 @@ namespace KinectBats
             RecognizerInfo ri = GetKinectRecognizer();
 
             //create instance of SRE
-
             SpeechRecognitionEngine sre;
             sre = new SpeechRecognitionEngine(ri.Id);
 
+            var startChoices = new Choices();
+            startChoices.Add("computer");
+            
             //Now we need to add the words we want our program to recognise
             var grammar = new Choices();
-            grammar.Add("computer");
             grammar.Add("exit");
-            grammar.Add("reset game");
+            grammar.Add("reset ball");
+            grammar.Add("restart");
             grammar.Add("shut up");
 
-            //set culture - language, country/region
+            //set culture - language, country/r balegionit
             var gb = new GrammarBuilder { Culture = ri.Culture };
             gb.Append(grammar);
 
+            var startgb = new GrammarBuilder { Culture = ri.Culture };
+            startgb.Append(startChoices);
+
             //set up the grammar builder
-            var g = new Grammar(gb);
-            sre.LoadGrammar(g);
+            selectGrammar = new Grammar(gb);
+            startGrammar = new Grammar(startgb);
+            sre.LoadGrammar(startGrammar);
 
             //Set events for recognizing, hypothesising and rejecting speech
             sre.SpeechRecognized += SreSpeechRecognized;
@@ -550,13 +579,13 @@ namespace KinectBats
                 }
 
                 bool tracked = true;
-                if ((s.Joints[Microsoft.Kinect.JointType.HandLeft].TrackingState != JointTrackingState.Tracked) || (s.Joints[Microsoft.Kinect.JointType.HandLeft].TrackingState != JointTrackingState.Tracked))
+                if ((s.Joints[Microsoft.Kinect.JointType.HandRight].TrackingState != JointTrackingState.Tracked) || (s.Joints[Microsoft.Kinect.JointType.HandRight].TrackingState != JointTrackingState.Tracked))
                 {
                     tracked = false;
                 }
 
-                DepthImagePoint leftHandDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.HandLeft].Position, depthFormat);
-                DepthImagePoint leftElbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.ElbowLeft].Position, depthFormat);
+                DepthImagePoint leftHandDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.HandRight].Position, depthFormat);
+                DepthImagePoint leftElbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.ElbowRight].Position, depthFormat);
 
                 if (index == 0)
                 {
@@ -595,33 +624,52 @@ namespace KinectBats
             
 
             world = new World(new Vector2(0, 10f));
-            
+
+            float paddleLength = 0.8f;
+            //float handOffset = paddleLength * -0.4f;
+            float handOffset = paddleLength * 0f;
+            //float elbowOffset = paddleLength * 0.4f;
+            float elbowOffset = paddleLength * 0.8f;
+
             // Left
-            leftArm = addRectangleObject(1.0f, 0.2f, 6.5f, 0.5f, true);
+            leftArm = addRectangleObject(paddleLength, 0.2f, worldSimWidth, 0.5f, true);
             leftHandJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
-            leftHandJoint.LocalAnchorA = new Vector2(-0.4f, 0f);
+            leftHandJoint.LocalAnchorA = new Vector2(handOffset, 0f);
             leftElbowJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
-            leftElbowJoint.LocalAnchorA = new Vector2(0.4f, 0f);
+            leftElbowJoint.LocalAnchorA = new Vector2(elbowOffset, 0f);
 
             // Right
-            rightArm = addRectangleObject(1.0f, 0.2f, 0.5f, 0.5f, true);
+            rightArm = addRectangleObject(paddleLength, 0.2f, 0.5f, 0.5f, true);
             rightHandJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
-            rightHandJoint.LocalAnchorA = new Vector2(-0.4f, 0f);
+            rightHandJoint.LocalAnchorA = new Vector2(handOffset, 0f);
             rightElbowJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
-            rightElbowJoint.LocalAnchorA = new Vector2(0.4f, 0f);
+            rightElbowJoint.LocalAnchorA = new Vector2(elbowOffset, 0f);
             
             // Add terrain
             float wallWidth = 0.05f;
-            addRectangleObject(wallWidth, worldSimHeight, wallWidth / 2, worldSimHeight / 2, false);
-            addRectangleObject(wallWidth, worldSimHeight, worldSimWidth - wallWidth / 2, worldSimHeight / 2, false);
+            // Left wall
+            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, worldSimHeight / 6, false);
+            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, 5 * worldSimHeight / 6, false);
+            
+            // Right wall
+            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, worldSimHeight / 6, false);
+            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, 5 * worldSimHeight / 6, false);
 
             addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, wallWidth / 2, false);
             addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, worldSimHeight - wallWidth / 2, false);
 
             // Add net
-            addRectangleObject(0.2f, worldSimHeight * 0.6f, worldSimWidth / 2, worldSimHeight * 1.0f, false);
+            //addRectangleObject(0.2f, worldSimHeight * 0.6f, worldSimWidth / 2, worldSimHeight * 1.0f, false);
 
-            resetBall();
+            acknowledgeSound = Content.Load<SoundEffect>("communications_start_transmission");
+            affirmativeSound = Content.Load<SoundEffect>("affirmative");
+            bogusSound = Content.Load<SoundEffect>("donotaddressthisunitinthatmanner_clean");
+            goalSound = Content.Load<SoundEffect>("consolewarning");
+            awaitingSound = Content.Load<SoundEffect>("awaiting");
+
+            resetGame();
+
+            awaitingSound.Play();
         }
 
         /// <summary>
@@ -644,6 +692,20 @@ namespace KinectBats
             if ((Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.Escape)) || (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed))
                 this.Exit();
 
+            if (Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.Space))
+            {
+                if ((leftScore >= targetScore) || (rightScore >= targetScore))
+                {
+                    resetGame();
+                }
+                else
+                {
+                    resetBall();
+                }
+            }
+
+
+
             var scale = ConvertUnits.ToDisplayUnits(worldSimWidth) / 640f;
 
             if (leftTracked)
@@ -662,10 +724,50 @@ namespace KinectBats
                 rightElbowJoint.WorldAnchorB = rightElbowPosition;
             }
 
+
+            if (ballBody != null)
+            {
+                if (ballBody.Position.X < 0)
+                {
+                    rightScore += 1;
+                    goalSound.Play();
+                    resetBall();
+                }
+                else if (ballBody.Position.X > worldSimWidth)
+                {
+                    leftScore += 1;
+                    goalSound.Play();
+                    resetBall();
+                }
+
+            }
+
+
+
+            if ((leftScore >= targetScore) || (rightScore >= targetScore))
+            {
+                // Someone won
+                if (ballBody != null)
+                {
+                    world.RemoveBody(ballBody);
+                    ballBody = null;
+                }
+            }
             // variable time step but never less then 30 Hz
             world.Step(Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, (1f / 30f)));
 
             //l.Update(gameTime);
+
+            TimeSpan timeDiff = DateTime.Now - lastAcknowledgeTime;
+            if (((listening) && (timeDiff.TotalSeconds > 5)) || (commandExecuted))
+            {
+                listening = false;
+                commandExecuted = false;
+
+                speechRecognizer.RequestRecognizerUpdate();
+                speechRecognizer.UnloadAllGrammars();
+                speechRecognizer.LoadGrammar(startGrammar);
+            }
 
             base.Update(gameTime);
 
@@ -695,13 +797,35 @@ namespace KinectBats
                 Body b = bodies[i];
                 Texture2D t = textures[i];
                 Vector2 o = origins[i];
+                Color c = Color.Black;
 
-                spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, Color.White, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
+                if (b == leftArm)
+                {
+                    c = Color.White;
+                }
+                else if (b == rightArm)
+                {
+                    c = Color.White;
+                }
+                spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, c, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
             }
 
             if (ballBody != null)
             {
                 spriteBatch.Draw(ballTexture, ConvertUnits.ToDisplayUnits(ballBody.Position), null, Color.White, ballBody.Rotation, ballOrigin, 1.0f, SpriteEffects.None, 0f);
+            }
+
+            font = Content.Load<SpriteFont>("batsfont");
+            spriteBatch.DrawString(font, leftScore.ToString(), new Vector2(10, 10), Color.Red);
+            spriteBatch.DrawString(font, rightScore.ToString(), new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth) - 80, 10), Color.Blue);
+
+            if (leftScore >= targetScore)
+            {
+                spriteBatch.DrawString(font, "Red player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2)), Color.Red);
+            }
+            else if (rightScore >= targetScore)
+            {
+                spriteBatch.DrawString(font, "Blue player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2)), Color.Blue);
             }
 
             spriteBatch.End();
