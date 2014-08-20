@@ -19,13 +19,11 @@ class TransportChecker(ProfitChecker):
             for j in range((i + 1), len(regions)):
                 dest_region = regions[j]
                 
-                
                 buy_type_volume = PriceType.SELL_VOLUME
                 sell_type_volume = PriceType.SELL_VOLUME
                 
                 buy_type = PriceType.SELL_MIN
                 sell_type = PriceType.SELL_MIN
-                  
                 
                 source_sell_volume = self.p.get_component_prices([type_id], sell_type_volume, source_region)[0]
                 source_buy_volume = self.p.get_component_prices([type_id], buy_type_volume, source_region)[0]

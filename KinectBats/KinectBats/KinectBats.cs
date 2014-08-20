@@ -253,7 +253,7 @@ namespace KinectBats
             String word = e.Result.Text.ToUpperInvariant();
             
             if (word == "COMPUTER") {
-                acknowledgeSound.Play();
+                //acknowledgeSound.Play();
                 lastAcknowledgeTime = DateTime.Now;
 
                 speechRecognizer.RequestRecognizerUpdate();
@@ -264,7 +264,7 @@ namespace KinectBats
             }
             else if (word == "EXIT")
             {
-                affirmativeSound.Play();
+                //affirmativeSound.Play();
                 this.Exit();
                 commandExecuted = true;
             }
@@ -359,7 +359,8 @@ namespace KinectBats
                             smoothingParam.MaxDeviationRadius = 0.04f;
                         };
                         
-                        kinect.SkeletonStream.Enable(smoothingParam);
+                        //kinect.SkeletonStream.Enable(smoothingParam);
+                        kinect.SkeletonStream.Enable();
 
                         kinect.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(kinect_AllFramesReady);
 
@@ -368,7 +369,7 @@ namespace KinectBats
                         cm = new CoordinateMapper(kinect);
                         Debug.WriteLineIf(debugging, kinect.Status);
 
-                        startAudio(kinect);
+                        //startAudio(kinect);
                     }
 
                     
@@ -537,6 +538,7 @@ namespace KinectBats
             {
                 rightTracked = false;
             }
+
         }
 
         void kinect_ColorFrameReady(object sender, AllFramesReadyEventArgs imageFrames)
@@ -664,15 +666,15 @@ namespace KinectBats
             // Add net
             //addRectangleObject(0.2f, worldSimHeight * 0.6f, worldSimWidth / 2, worldSimHeight * 1.0f, false);
 
-            acknowledgeSound = Content.Load<SoundEffect>("communications_start_transmission");
-            affirmativeSound = Content.Load<SoundEffect>("affirmative");
-            bogusSound = Content.Load<SoundEffect>("donotaddressthisunitinthatmanner_clean");
-            goalSound = Content.Load<SoundEffect>("consolewarning");
-            awaitingSound = Content.Load<SoundEffect>("awaiting");
+            //acknowledgeSound = Content.Load<SoundEffect>("communications_start_transmission");
+            //affirmativeSound = Content.Load<SoundEffect>("affirmative");
+            //bogusSound = Content.Load<SoundEffect>("donotaddressthisunitinthatmanner_clean");
+            //goalSound = Content.Load<SoundEffect>("consolewarning");
+            //awaitingSound = Content.Load<SoundEffect>("awaiting");
 
             resetGame();
 
-            awaitingSound.Play();
+            //awaitingSound.Play();
         }
 
         /// <summary>
@@ -733,13 +735,13 @@ namespace KinectBats
                 if (ballBody.Position.X < 0)
                 {
                     rightScore += 1;
-                    goalSound.Play();
+                    //goalSound.Play();
                     resetBall();
                 }
                 else if (ballBody.Position.X > worldSimWidth)
                 {
                     leftScore += 1;
-                    goalSound.Play();
+                    //goalSound.Play();
                     resetBall();
                 }
 
