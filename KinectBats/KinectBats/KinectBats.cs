@@ -68,14 +68,19 @@ namespace KinectBats
         Texture2D armTexture;
         Texture2D ballTexture;
 
+        bool leftTracked = false;
         ColorImagePoint leftHandPoint;
         ColorImagePoint leftElbowPoint;
-        bool leftTracked = false;
+        ColorImagePoint leftFootPoint;
+        ColorImagePoint leftKneePoint;
 
+
+        bool rightTracked = false;
         ColorImagePoint rightHandPoint;
         ColorImagePoint rightElbowPoint;
-        bool rightTracked = false;
-
+        ColorImagePoint rightFootPoint;
+        ColorImagePoint rightKneePoint;
+        
         Line l;
 
         const DepthImageFormat depthFormat = DepthImageFormat.Resolution320x240Fps30;
@@ -91,9 +96,17 @@ namespace KinectBats
         FixedMouseJoint leftHandJoint;
         FixedMouseJoint leftElbowJoint;
 
+        Body leftFoot;
+        FixedMouseJoint leftFootJoint;
+        FixedMouseJoint leftKneeJoint;
+
         Body rightArm;
         FixedMouseJoint rightHandJoint;
         FixedMouseJoint rightElbowJoint;
+
+        Body rightFoot;
+        FixedMouseJoint rightFootJoint;
+        FixedMouseJoint rightKneeJoint;
 
         Body ballBody = null;
         CircleShape ballShape;
@@ -421,7 +434,7 @@ namespace KinectBats
             }
         }
 
-        private Body addRectangleObject(float width, float height, float x, float y, bool dynamic)
+        private Body addRectangleObject(float width, float height, float x, float y, bool dynamic, Color usedColor)
         {
 
             int pixelWidth = (int)Math.Round(ConvertUnits.ToDisplayUnits(width));
@@ -429,9 +442,10 @@ namespace KinectBats
             Texture2D rectangleTexture = new Texture2D(graphics.GraphicsDevice, pixelWidth, pixelHeight);
             // Create a color array for the pixels
             Color[] colors = new Color[pixelWidth * pixelHeight];
+            
             for (int i = 0; i < colors.Length; i++)
             {
-                colors[i] = new Color(Color.White.ToVector3());
+                colors[i] = usedColor;
             }
 
             // Set the color data for the texture
@@ -581,25 +595,54 @@ namespace KinectBats
                     return;
                 }
 
-                bool tracked = true;
-                if ((s.Joints[Microsoft.Kinect.JointType.HandRight].TrackingState != JointTrackingState.Tracked) || (s.Joints[Microsoft.Kinect.JointType.HandRight].TrackingState != JointTrackingState.Tracked))
+                bool handTracked = true;
+                if (s.Joints[Microsoft.Kinect.JointType.HandRight].TrackingState != JointTrackingState.Tracked)
                 {
-                    tracked = false;
+                    handTracked = false;
                 }
 
-                DepthImagePoint leftHandDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.HandRight].Position, depthFormat);
-                DepthImagePoint leftElbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.ElbowRight].Position, depthFormat);
+                bool footTracked = true;
+                if (s.Joints[Microsoft.Kinect.JointType.FootRight].TrackingState != JointTrackingState.Tracked)
+                {
+                    footTracked = false;
+                }
+
+                DepthImagePoint handDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.HandRight].Position, depthFormat);
+                DepthImagePoint elbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.ElbowRight].Position, depthFormat);
+                DepthImagePoint footDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.FootRight].Position, depthFormat);
+                DepthImagePoint kneeDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.KneeRight].Position, depthFormat);
+
 
                 if (index == 0)
                 {
-                    leftHandPoint = cm.MapDepthPointToColorPoint(depthFormat, leftHandDepthPoint, colorFormat);
-                    leftElbowPoint = cm.MapDepthPointToColorPoint(depthFormat, leftElbowDepthPoint, colorFormat);
-                    leftTracked = tracked;
+                    if (handTracked)
+                    {
+                        leftHandPoint = cm.MapDepthPointToColorPoint(depthFormat, handDepthPoint, colorFormat);
+                        leftElbowPoint = cm.MapDepthPointToColorPoint(depthFormat, elbowDepthPoint, colorFormat);
+                    }
+
+                    if (footTracked)
+                    {
+                        leftFootPoint = cm.MapDepthPointToColorPoint(depthFormat, footDepthPoint, colorFormat);
+                        leftKneePoint = cm.MapDepthPointToColorPoint(depthFormat, kneeDepthPoint, colorFormat);
+                    }
+
+                    leftTracked = (handTracked || footTracked);
                 }
                 else {
-                    rightHandPoint = cm.MapDepthPointToColorPoint(depthFormat, leftHandDepthPoint, colorFormat);
-                    rightElbowPoint = cm.MapDepthPointToColorPoint(depthFormat, leftElbowDepthPoint, colorFormat);
-                    rightTracked = tracked;
+                    if (handTracked)
+                    {
+                        rightHandPoint = cm.MapDepthPointToColorPoint(depthFormat, handDepthPoint, colorFormat);
+                        rightElbowPoint = cm.MapDepthPointToColorPoint(depthFormat, elbowDepthPoint, colorFormat);
+                    }
+
+                    if (footTracked)
+                    {
+                        rightFootPoint = cm.MapDepthPointToColorPoint(depthFormat, footDepthPoint, colorFormat);
+                        rightKneePoint = cm.MapDepthPointToColorPoint(depthFormat, kneeDepthPoint, colorFormat);
+                    }
+
+                    rightTracked = (handTracked || footTracked);
                 }
             }
         }
@@ -636,32 +679,49 @@ namespace KinectBats
             //float elbowOffset = paddleLength * 0.4f;
             float elbowOffset = paddleLength * 0.8f;
 
+            float footOffset = paddleLength * 0.2f;
+            float kneeOffset = paddleLength * 1.0f;
+
             // Left
-            leftArm = addRectangleObject(paddleLength, 0.2f, worldSimWidth, 0.5f, true);
+            // ---------------------------------------------
+            leftArm = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.1f, 0.5f, true, Color.Red);
             leftHandJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
             leftHandJoint.LocalAnchorA = new Vector2(handOffset, 0f);
             leftElbowJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
             leftElbowJoint.LocalAnchorA = new Vector2(elbowOffset, 0f);
 
+            leftFoot = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.2f, 0.5f, true, Color.Red);
+            leftFootJoint = JointFactory.CreateFixedMouseJoint(world, leftFoot, new Vector2(0f, 0f));
+            leftFootJoint.LocalAnchorA = new Vector2(footOffset, 0f);
+            leftKneeJoint = JointFactory.CreateFixedMouseJoint(world, leftFoot, new Vector2(0f, 0f));
+            leftKneeJoint.LocalAnchorA = new Vector2(kneeOffset, 0f);
+
             // Right
-            rightArm = addRectangleObject(paddleLength, 0.2f, 0.5f, 0.5f, true);
+            // ---------------------------------------------
+            rightArm = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.9f, 0.5f, true, Color.Blue);
             rightHandJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
             rightHandJoint.LocalAnchorA = new Vector2(handOffset, 0f);
             rightElbowJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
             rightElbowJoint.LocalAnchorA = new Vector2(elbowOffset, 0f);
+
+            rightFoot = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.8f, 0.5f, true, Color.Blue);
+            rightFootJoint = JointFactory.CreateFixedMouseJoint(world, rightFoot, new Vector2(0f, 0f));
+            rightFootJoint.LocalAnchorA = new Vector2(footOffset, 0f);
+            rightKneeJoint = JointFactory.CreateFixedMouseJoint(world, rightFoot, new Vector2(0f, 0f));
+            rightKneeJoint.LocalAnchorA = new Vector2(kneeOffset, 0f);
             
             // Add terrain
             float wallWidth = 0.05f;
             // Left wall
-            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, worldSimHeight / 6, false);
-            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, 5 * worldSimHeight / 6, false);
+            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, worldSimHeight / 6, false, Color.Green);
+            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, 5 * worldSimHeight / 6, false, Color.Green);
             
             // Right wall
-            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, worldSimHeight / 6, false);
-            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, 5 * worldSimHeight / 6, false);
+            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, worldSimHeight / 6, false, Color.Green);
+            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, 5 * worldSimHeight / 6, false, Color.Green);
 
-            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, wallWidth / 2, false);
-            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, worldSimHeight - wallWidth / 2, false);
+            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, wallWidth / 2, false, Color.Green);
+            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, worldSimHeight - wallWidth / 2, false, Color.Green);
 
             // Add net
             //addRectangleObject(0.2f, worldSimHeight * 0.6f, worldSimWidth / 2, worldSimHeight * 1.0f, false);
@@ -719,6 +779,11 @@ namespace KinectBats
                 leftHandJoint.WorldAnchorB = leftHandPosition;
                 Vector2 leftElbowPosition = new Vector2(ConvertUnits.ToSimUnits(leftElbowPoint.X * scale), ConvertUnits.ToSimUnits(leftElbowPoint.Y * scale));
                 leftElbowJoint.WorldAnchorB = leftElbowPosition;
+
+                Vector2 leftFootPosition = new Vector2(ConvertUnits.ToSimUnits(leftFootPoint.X * scale), ConvertUnits.ToSimUnits(leftFootPoint.Y * scale));
+                leftFootJoint.WorldAnchorB = leftFootPosition;
+                Vector2 leftKneePosition = new Vector2(ConvertUnits.ToSimUnits(leftKneePoint.X * scale), ConvertUnits.ToSimUnits(leftKneePoint.Y * scale));
+                leftKneeJoint.WorldAnchorB = leftKneePosition;
             }
 
             if (rightTracked)
@@ -727,6 +792,11 @@ namespace KinectBats
                 rightHandJoint.WorldAnchorB = rightHandPosition;
                 Vector2 rightElbowPosition = new Vector2(ConvertUnits.ToSimUnits(rightElbowPoint.X * scale), ConvertUnits.ToSimUnits(rightElbowPoint.Y * scale));
                 rightElbowJoint.WorldAnchorB = rightElbowPosition;
+
+                Vector2 rightFootPosition = new Vector2(ConvertUnits.ToSimUnits(rightFootPoint.X * scale), ConvertUnits.ToSimUnits(rightFootPoint.Y * scale));
+                rightFootJoint.WorldAnchorB = rightFootPosition;
+                Vector2 rightKneePosition = new Vector2(ConvertUnits.ToSimUnits(rightKneePoint.X * scale), ConvertUnits.ToSimUnits(rightKneePoint.Y * scale));
+                rightKneeJoint.WorldAnchorB = rightKneePosition;
             }
 
 
@@ -802,17 +872,7 @@ namespace KinectBats
                 Body b = bodies[i];
                 Texture2D t = textures[i];
                 Vector2 o = origins[i];
-                Color c = Color.Black;
-
-                if (b == leftArm)
-                {
-                    c = Color.White;
-                }
-                else if (b == rightArm)
-                {
-                    c = Color.White;
-                }
-                spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, c, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
+                spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, Color.White, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
             }
 
             if (ballBody != null)
