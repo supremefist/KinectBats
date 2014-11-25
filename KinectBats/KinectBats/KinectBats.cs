@@ -39,6 +39,11 @@ namespace KinectBats
         float worldSimWidth = 8f;
         float worldSimHeight = 6f;
 
+        Vector2 prevBallLocation = new Vector2(0, 0);
+        float prevBallRotation = 0f;
+        float staticBallTime = 0;
+        Boolean ballVisible = true;
+
         DateTime lastAcknowledgeTime;
 
         GraphicsDeviceManager graphics;
@@ -802,6 +807,29 @@ namespace KinectBats
 
             if (ballBody != null)
             {
+                if (Math.Abs(ballBody.Position.X - prevBallLocation.X) + Math.Abs(ballBody.Position.Y - prevBallLocation.Y) + Math.Abs(ballBody.Rotation - prevBallRotation) == 0)
+                {
+                    // Ball static
+                    staticBallTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+                    if (staticBallTime > 2)
+                    {
+                        staticBallTime = 0;
+                        ballVisible = true;
+                        resetBall();
+                    }
+                    else
+                    {
+                        ballVisible = (int)((staticBallTime / 0.2)) % 2 == 0;
+                    }
+                    
+                } else {
+                    // Ball moving
+                    staticBallTime = 0;
+                    ballVisible = true;
+                }
+
+
                 if (ballBody.Position.X < 0)
                 {
                     rightScore += 1;
@@ -815,6 +843,8 @@ namespace KinectBats
                     resetBall();
                 }
 
+                prevBallLocation = ballBody.Position;
+                prevBallRotation = ballBody.Rotation;
             }
 
 
@@ -828,7 +858,8 @@ namespace KinectBats
                     ballBody = null;
                 }
             }
-            // variable time step but never less then 30 Hz
+
+            // variable time step but never less than 30 Hz
             world.Step(Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, (1f / 30f)));
 
             //l.Update(gameTime);
@@ -875,7 +906,7 @@ namespace KinectBats
                 spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, Color.White, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
             }
 
-            if (ballBody != null)
+            if ((ballBody != null) && (ballVisible))
             {
                 spriteBatch.Draw(ballTexture, ConvertUnits.ToDisplayUnits(ballBody.Position), null, Color.White, ballBody.Rotation, ballOrigin, 1.0f, SpriteEffects.None, 0f);
             }
