@@ -10,5 +10,3 @@ Dependencies (Not complete yet)
 - Kinect windows runtime 1.8
 - MS visual studio C# express
 - MS XNA game studio 4.0
-
-

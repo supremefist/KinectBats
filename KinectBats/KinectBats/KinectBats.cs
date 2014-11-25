@@ -198,8 +198,8 @@ namespace KinectBats
             ballBody.Position = new Vector2(worldSimWidth / 2, worldSimWidth / 5);
             Fixture temp = ballBody.CreateFixture(ballShape);
 
-            ballBody.Restitution = 0.95f;
-            ballBody.Friction = 0.95f;
+            ballBody.Restitution = 0.9f;
+            ballBody.Friction = 0.9f;
         }
 
         private void startAudio(KinectSensor sensor)
@@ -714,19 +714,21 @@ namespace KinectBats
             rightFootJoint.LocalAnchorA = new Vector2(footOffset, 0f);
             rightKneeJoint = JointFactory.CreateFixedMouseJoint(world, rightFoot, new Vector2(0f, 0f));
             rightKneeJoint.LocalAnchorA = new Vector2(kneeOffset, 0f);
-            
+
+            Color boundaryColor = Color.FloralWhite;
+
             // Add terrain
-            float wallWidth = 0.05f;
+            float wallWidth = 0.15f;
             // Left wall
-            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, worldSimHeight / 6, false, Color.Green);
-            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, 5 * worldSimHeight / 6, false, Color.Green);
+            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, worldSimHeight / 6, false, Color.Red);
+            addRectangleObject(wallWidth, worldSimHeight / 3, wallWidth / 2, 5 * worldSimHeight / 6, false, Color.Red);
             
             // Right wall
-            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, worldSimHeight / 6, false, Color.Green);
-            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, 5 * worldSimHeight / 6, false, Color.Green);
+            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, worldSimHeight / 6, false, Color.Blue);
+            addRectangleObject(wallWidth, worldSimHeight / 3, worldSimWidth - wallWidth / 2, 5 * worldSimHeight / 6, false, Color.Blue);
 
-            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, wallWidth / 2, false, Color.Green);
-            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, worldSimHeight - wallWidth / 2, false, Color.Green);
+            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, wallWidth / 2, false, boundaryColor);
+            addRectangleObject(worldSimWidth, wallWidth, worldSimWidth / 2, worldSimHeight - wallWidth / 2, false, boundaryColor);
 
             // Add net
             //addRectangleObject(0.2f, worldSimHeight * 0.6f, worldSimWidth / 2, worldSimHeight * 1.0f, false);
@@ -807,7 +809,7 @@ namespace KinectBats
 
             if (ballBody != null)
             {
-                if (Math.Abs(ballBody.Position.X - prevBallLocation.X) + Math.Abs(ballBody.Position.Y - prevBallLocation.Y) + Math.Abs(ballBody.Rotation - prevBallRotation) == 0)
+                if (Math.Abs(ballBody.Position.Y - prevBallLocation.Y) < 0.01)
                 {
                     // Ball static
                     staticBallTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -912,8 +914,8 @@ namespace KinectBats
             }
 
             font = Content.Load<SpriteFont>("batsfont");
-            spriteBatch.DrawString(font, leftScore.ToString(), new Vector2(10, 10), Color.Red);
-            spriteBatch.DrawString(font, rightScore.ToString(), new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth) - 80, 10), Color.Blue);
+            spriteBatch.DrawString(font, leftScore.ToString(), new Vector2(30, 30), Color.Red);
+            spriteBatch.DrawString(font, rightScore.ToString(), new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth) - 80, 30), Color.Blue);
 
             if (leftScore >= targetScore)
             {
