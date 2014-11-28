@@ -53,6 +53,7 @@ namespace KinectBats
         Texture2D colorVideo, depthVideo;
         Boolean debugging = true;
         Boolean done = false;
+        Boolean paused = false;
         Boolean commandExecuted = false;
         const int skeletonCount = 6;
         Skeleton[] allSkeletons = new Skeleton[skeletonCount];
@@ -65,7 +66,7 @@ namespace KinectBats
         int leftSkeletonIndex = 0;
         int rightSkeletonIndex = 1;
         float currentGameTime = 0;
-        float lastSwitchTime = 0;
+        float lastKeyTime = 0;
 
         int targetScore = 6;
 
@@ -478,7 +479,7 @@ namespace KinectBats
                         cm = new CoordinateMapper(kinect);
                         Debug.WriteLineIf(debugging, kinect.Status);
 
-                        startAudio(kinect);
+                        //startAudio(kinect);
                     }
                 }
             }
@@ -617,11 +618,12 @@ namespace KinectBats
             if (e.Status == KinectStatus.Connected)
             {
                 startKinect();
+                paused = false;
             }
             else
             {
-                Console.Write("Status change close...");
                 stopAllKinects();
+                paused = true;
             }
             
         }
@@ -708,8 +710,17 @@ namespace KinectBats
                     footTracked = false;
                 }
 
-                DepthImagePoint handDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.HandRight].Position, depthFormat);
-                DepthImagePoint elbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.ElbowRight].Position, depthFormat);
+                Microsoft.Kinect.JointType handType = Microsoft.Kinect.JointType.HandRight;
+                Microsoft.Kinect.JointType elbowType = Microsoft.Kinect.JointType.ElbowRight;
+
+                if (index == leftSkeletonIndex)
+                {
+                    handType = Microsoft.Kinect.JointType.HandLeft;
+                    elbowType = Microsoft.Kinect.JointType.ElbowLeft;
+                }
+
+                DepthImagePoint handDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[handType].Position, depthFormat);
+                DepthImagePoint elbowDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[elbowType].Position, depthFormat);
                 DepthImagePoint footDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.FootRight].Position, depthFormat);
                 DepthImagePoint kneeDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.KneeRight].Position, depthFormat);
 
@@ -884,18 +895,26 @@ namespace KinectBats
                 }
             }
 
-            if (Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.LeftControl) && (currentGameTime - lastSwitchTime > 0.5))
+            if (currentGameTime - lastKeyTime > 0.5)
             {
-                lastSwitchTime = currentGameTime;
-                Console.WriteLine("Control");
-                int tempSkeletonIndex = leftSkeletonIndex;
-                leftSkeletonIndex = rightSkeletonIndex;
-                rightSkeletonIndex = tempSkeletonIndex;
+                if (Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.LeftControl))
+                {
+                    lastKeyTime = currentGameTime;
+                    int tempSkeletonIndex = leftSkeletonIndex;
+                    leftSkeletonIndex = rightSkeletonIndex;
+                    rightSkeletonIndex = tempSkeletonIndex;
+                }
+
+                if (Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.P))
+                {
+                    lastKeyTime = currentGameTime;
+                    paused = !paused;
+                }
             }
-
-
-
+            
             var scale = ConvertUnits.ToDisplayUnits(worldSimWidth) / 640f;
+
+            Vector2 leftFootPosition = Vector2.Zero;
 
             if (leftTracked)
             {
@@ -910,7 +929,7 @@ namespace KinectBats
                     leftElbowJoint.WorldAnchorB = leftElbowPosition;
                 }
 
-                Vector2 leftFootPosition = new Vector2(ConvertUnits.ToSimUnits(leftFootPoint.X * scale), ConvertUnits.ToSimUnits(leftFootPoint.Y * scale));
+                leftFootPosition = new Vector2(ConvertUnits.ToSimUnits(leftFootPoint.X * scale), ConvertUnits.ToSimUnits(leftFootPoint.Y * scale));
                 if (leftFootJoint != null)
                 {
                     leftFootJoint.WorldAnchorB = leftFootPosition;
@@ -923,6 +942,7 @@ namespace KinectBats
                 }
             }
 
+            Vector2 rightFootPosition = Vector2.Zero;
             if (rightTracked)
             {
                 Vector2 rightHandPosition = new Vector2(ConvertUnits.ToSimUnits(rightHandPoint.X * scale), ConvertUnits.ToSimUnits(rightHandPoint.Y * scale));
@@ -936,7 +956,7 @@ namespace KinectBats
                     rightElbowJoint.WorldAnchorB = rightElbowPosition;
                 }
 
-                Vector2 rightFootPosition = new Vector2(ConvertUnits.ToSimUnits(rightFootPoint.X * scale), ConvertUnits.ToSimUnits(rightFootPoint.Y * scale));
+                rightFootPosition = new Vector2(ConvertUnits.ToSimUnits(rightFootPoint.X * scale), ConvertUnits.ToSimUnits(rightFootPoint.Y * scale));
                 if (rightFootJoint != null)
                 {
                     rightFootJoint.WorldAnchorB = rightFootPosition;
@@ -948,6 +968,16 @@ namespace KinectBats
                 }
             }
 
+            if ((leftFootPosition.X > 0) && (rightFootPosition.X > 0))
+            {
+                // Auto swap bats
+                if (leftFootPosition.X > rightFootPosition.X)
+                {
+                    int tempIndex = leftSkeletonIndex;
+                    leftSkeletonIndex = rightSkeletonIndex;
+                    rightSkeletonIndex = tempIndex;
+                }
+            }
 
             if (ballBody != null)
             {
@@ -1019,7 +1049,10 @@ namespace KinectBats
             }
 
             // variable time step but never less than 30 Hz
-            world.Step(Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, (1f / 30f)));
+            if (!paused)
+            {
+                world.Step(Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, (1f / 30f)));
+            }
 
             //l.Update(gameTime);
 
@@ -1073,14 +1106,18 @@ namespace KinectBats
                 Vector2 position = ConvertUnits.ToDisplayUnits(ballBody.Position);
                 position.X *= objectScale.X;
                 position.Y *= objectScale.Y;
-                spriteBatch.Draw(ballTexture, position, null, Color.White, ballBody.Rotation, ballOrigin, objectScale.Y, SpriteEffects.None, 0f);
+                spriteBatch.Draw(ballTexture, position, null, Color.White, ballBody.Rotation, ballOrigin, 1.0f, SpriteEffects.None, 0f);
             }
 
             font = Content.Load<SpriteFont>("batsfont");
             spriteBatch.DrawString(font, redScore.ToString(), new Vector2(50, 50), Color.Red);
             spriteBatch.DrawString(font, blueScore.ToString(), new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth) * objectScale.X - 100, 50), Color.Blue);
 
-            if (redScore >= targetScore)
+            if (paused)
+            {
+                spriteBatch.DrawString(font, "PAUSED", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) * objectScale.X - 100, ConvertUnits.ToDisplayUnits(worldSimHeight / 2) * objectScale.Y), Color.Black);
+            }
+            else if (redScore >= targetScore)
             {
                 spriteBatch.DrawString(font, "Red player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) * objectScale.X - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2) * objectScale.Y), Color.Red);
             }
