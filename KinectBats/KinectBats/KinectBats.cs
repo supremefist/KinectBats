@@ -48,7 +48,7 @@ namespace KinectBats
 
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
-        KinectSensor kinect;
+        KinectSensor kinect = null;
         Texture2D colorVideo, depthVideo;
         Boolean debugging = true;
         Boolean done = false;
@@ -72,6 +72,11 @@ namespace KinectBats
         Texture2D pixel;
         Texture2D armTexture;
         Texture2D ballTexture;
+
+        int windowWidth = 800;
+        int windowHeight = 640;
+        Vector2 videoScale = new Vector2(1, 1);
+        Vector2 objectScale = new Vector2(1, 1);
 
         bool leftTracked = false;
         ColorImagePoint leftHandPoint;
@@ -98,20 +103,20 @@ namespace KinectBats
         Boolean listening = false;
 
         Body leftArm;
-        FixedMouseJoint leftHandJoint;
-        FixedMouseJoint leftElbowJoint;
+        FixedMouseJoint leftHandJoint = null;
+        FixedMouseJoint leftElbowJoint = null;
 
         Body leftFoot;
-        FixedMouseJoint leftFootJoint;
-        FixedMouseJoint leftKneeJoint;
+        FixedMouseJoint leftFootJoint = null;
+        FixedMouseJoint leftKneeJoint = null;
 
         Body rightArm;
-        FixedMouseJoint rightHandJoint;
-        FixedMouseJoint rightElbowJoint;
+        FixedMouseJoint rightHandJoint = null;
+        FixedMouseJoint rightElbowJoint = null;
 
         Body rightFoot;
-        FixedMouseJoint rightFootJoint;
-        FixedMouseJoint rightKneeJoint;
+        FixedMouseJoint rightFootJoint = null;
+        FixedMouseJoint rightKneeJoint = null;
 
         Body ballBody = null;
         CircleShape ballShape;
@@ -139,6 +144,30 @@ namespace KinectBats
 
             lastAcknowledgeTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
+            // Allow window resizing
+            this.Window.AllowUserResizing = true;
+            this.Window.ClientSizeChanged += new EventHandler<EventArgs>(windowClientSizeChanged);
+
+            updateScale();
+        }
+
+        void updateScale()
+        {
+            // Make changes to handle the new window size.            
+            windowWidth = this.Window.ClientBounds.Width;
+            windowHeight = this.Window.ClientBounds.Height;
+
+            //var scale = (float)windowHeight / ConvertUnits.ToDisplayUnits(worldSimWidth);
+            videoScale.X = (float)windowWidth / 640f;
+            videoScale.Y = (float)windowHeight / 480f;
+
+            objectScale.X = (float)windowWidth / ConvertUnits.ToDisplayUnits(worldSimWidth);
+            objectScale.Y = (float)windowHeight / ConvertUnits.ToDisplayUnits(worldSimHeight);
+        }
+
+        void windowClientSizeChanged(object sender, EventArgs e)
+        {
+            updateScale();
         }
 
         private static RecognizerInfo GetKinectRecognizer()
@@ -198,8 +227,8 @@ namespace KinectBats
             ballBody.Position = new Vector2(worldSimWidth / 2, worldSimWidth / 5);
             Fixture temp = ballBody.CreateFixture(ballShape);
 
-            ballBody.Restitution = 0.9f;
-            ballBody.Friction = 0.9f;
+            ballBody.Restitution = 0.95f;
+            ballBody.Friction = 0.95f;
         }
 
         private void startAudio(KinectSensor sensor)
@@ -355,51 +384,13 @@ namespace KinectBats
         /// </summary>
         protected override void Initialize()
         {
+            KinectSensor.KinectSensors.StatusChanged += new EventHandler<StatusChangedEventArgs>(kinectStatusChanged);
 
-            try
-            {
-                if (KinectSensor.KinectSensors.Count > 0)
-                {
-                    //Initialise Kinect
-                    kinect = KinectSensor.KinectSensors[0];
-
-                    if (kinect.Status == KinectStatus.Connected)
-                    {
-                        kinect.ColorStream.Enable(colorFormat);
-                        kinect.DepthStream.Enable(depthFormat);
-
-                        TransformSmoothParameters smoothingParam = new TransformSmoothParameters();
-                        {
-                            smoothingParam.Smoothing = 0.5f;
-                            smoothingParam.Correction = 0.5f;
-                            smoothingParam.Prediction = 0.5f;
-                            smoothingParam.JitterRadius = 0.05f;
-                            smoothingParam.MaxDeviationRadius = 0.04f;
-                        };
-                        
-                        //kinect.SkeletonStream.Enable(smoothingParam);
-                        kinect.SkeletonStream.Enable();
-
-                        kinect.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(kinect_AllFramesReady);
-
-                        kinect.Start();
-
-                        cm = new CoordinateMapper(kinect);
-                        Debug.WriteLineIf(debugging, kinect.Status);
-
-                        //startAudio(kinect);
-                    }
-
-                    
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e.ToString());
-            }
+            startKinect();
 
             base.Initialize();
 
+            
             //l = new Line(new Vector2(0, 0), new Vector2(100, 100), 20, Color.Black, pixel);
         }
 
@@ -437,6 +428,64 @@ namespace KinectBats
 
                 return trackedSkeletons;
             }
+        }
+
+        private void startKinect()
+        {
+            Console.WriteLine("Starting kinect...");
+            try
+            {
+                if (KinectSensor.KinectSensors.Count > 0)
+                {
+                    //Initialise Kinect
+                    kinect = KinectSensor.KinectSensors[0];
+
+                    if (kinect.Status == KinectStatus.Connected)
+                    {
+                        kinect.ColorStream.Enable(colorFormat);
+                        kinect.DepthStream.Enable(depthFormat);
+
+                        TransformSmoothParameters smoothingParam = new TransformSmoothParameters();
+                        {
+                            smoothingParam.Smoothing = 0.5f;
+                            smoothingParam.Correction = 0.5f;
+                            smoothingParam.Prediction = 0.5f;
+                            smoothingParam.JitterRadius = 0.05f;
+                            smoothingParam.MaxDeviationRadius = 0.04f;
+                        };
+
+                        //kinect.SkeletonStream.Enable(smoothingParam);
+                        kinect.SkeletonStream.Enable();
+
+                        kinect.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(kinect_AllFramesReady);
+
+                        kinect.Start();
+
+                        cm = new CoordinateMapper(kinect);
+                        Debug.WriteLineIf(debugging, kinect.Status);
+
+                        //startAudio(kinect);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e.ToString());
+            }
+
+            Console.WriteLine("Kinect started.");
+        }
+
+        private void stopKinect()
+        {
+            Console.WriteLine("Stopping kinect...");
+            if (kinect != null)
+            {
+                kinect.Stop();
+            }
+            Console.WriteLine("Kinect stopped.");
+
+            kinect = null;
         }
 
         private Body addRectangleObject(float width, float height, float x, float y, bool dynamic, Color usedColor)
@@ -528,6 +577,19 @@ namespace KinectBats
                 depthFrame32[i32 + AlphaIndex] = 255;
             }
             return depthFrame32;
+        }
+
+        void kinectStatusChanged(object sender, StatusChangedEventArgs e)
+        {
+            if (e.Status == KinectStatus.Connected)
+            {
+                startKinect();
+            }
+            else
+            {
+                stopKinect();
+            }
+            
         }
 
         void kinect_AllFramesReady(object sender, AllFramesReadyEventArgs imageFrames)
@@ -695,11 +757,13 @@ namespace KinectBats
             leftElbowJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
             leftElbowJoint.LocalAnchorA = new Vector2(elbowOffset, 0f);
 
+            /*
             leftFoot = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.2f, 0.5f, true, Color.Red);
             leftFootJoint = JointFactory.CreateFixedMouseJoint(world, leftFoot, new Vector2(0f, 0f));
             leftFootJoint.LocalAnchorA = new Vector2(footOffset, 0f);
             leftKneeJoint = JointFactory.CreateFixedMouseJoint(world, leftFoot, new Vector2(0f, 0f));
             leftKneeJoint.LocalAnchorA = new Vector2(kneeOffset, 0f);
+            */
 
             // Right
             // ---------------------------------------------
@@ -709,11 +773,13 @@ namespace KinectBats
             rightElbowJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
             rightElbowJoint.LocalAnchorA = new Vector2(elbowOffset, 0f);
 
+            /*
             rightFoot = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.8f, 0.5f, true, Color.Blue);
             rightFootJoint = JointFactory.CreateFixedMouseJoint(world, rightFoot, new Vector2(0f, 0f));
             rightFootJoint.LocalAnchorA = new Vector2(footOffset, 0f);
             rightKneeJoint = JointFactory.CreateFixedMouseJoint(world, rightFoot, new Vector2(0f, 0f));
             rightKneeJoint.LocalAnchorA = new Vector2(kneeOffset, 0f);
+            */
 
             Color boundaryColor = Color.FloralWhite;
 
@@ -783,44 +849,70 @@ namespace KinectBats
             if (leftTracked)
             {
                 Vector2 leftHandPosition = new Vector2(ConvertUnits.ToSimUnits(leftHandPoint.X * scale), ConvertUnits.ToSimUnits(leftHandPoint.Y * scale));
-                leftHandJoint.WorldAnchorB = leftHandPosition;
+                if (leftHandJoint != null)
+                {
+                    leftHandJoint.WorldAnchorB = leftHandPosition;
+                }
                 Vector2 leftElbowPosition = new Vector2(ConvertUnits.ToSimUnits(leftElbowPoint.X * scale), ConvertUnits.ToSimUnits(leftElbowPoint.Y * scale));
-                leftElbowJoint.WorldAnchorB = leftElbowPosition;
+                if (leftElbowJoint != null)
+                {
+                    leftElbowJoint.WorldAnchorB = leftElbowPosition;
+                }
 
                 Vector2 leftFootPosition = new Vector2(ConvertUnits.ToSimUnits(leftFootPoint.X * scale), ConvertUnits.ToSimUnits(leftFootPoint.Y * scale));
-                leftFootJoint.WorldAnchorB = leftFootPosition;
+                if (leftFootJoint != null)
+                {
+                    leftFootJoint.WorldAnchorB = leftFootPosition;
+                }
+
                 Vector2 leftKneePosition = new Vector2(ConvertUnits.ToSimUnits(leftKneePoint.X * scale), ConvertUnits.ToSimUnits(leftKneePoint.Y * scale));
-                leftKneeJoint.WorldAnchorB = leftKneePosition;
+                if (leftKneeJoint != null)
+                {
+                    leftKneeJoint.WorldAnchorB = leftKneePosition;
+                }
             }
 
             if (rightTracked)
             {
                 Vector2 rightHandPosition = new Vector2(ConvertUnits.ToSimUnits(rightHandPoint.X * scale), ConvertUnits.ToSimUnits(rightHandPoint.Y * scale));
-                rightHandJoint.WorldAnchorB = rightHandPosition;
+                if (rightHandJoint != null)
+                {
+                    rightHandJoint.WorldAnchorB = rightHandPosition;
+                }
                 Vector2 rightElbowPosition = new Vector2(ConvertUnits.ToSimUnits(rightElbowPoint.X * scale), ConvertUnits.ToSimUnits(rightElbowPoint.Y * scale));
-                rightElbowJoint.WorldAnchorB = rightElbowPosition;
+                if (rightElbowJoint != null)
+                {
+                    rightElbowJoint.WorldAnchorB = rightElbowPosition;
+                }
 
                 Vector2 rightFootPosition = new Vector2(ConvertUnits.ToSimUnits(rightFootPoint.X * scale), ConvertUnits.ToSimUnits(rightFootPoint.Y * scale));
-                rightFootJoint.WorldAnchorB = rightFootPosition;
+                if (rightFootJoint != null)
+                {
+                    rightFootJoint.WorldAnchorB = rightFootPosition;
+                }
                 Vector2 rightKneePosition = new Vector2(ConvertUnits.ToSimUnits(rightKneePoint.X * scale), ConvertUnits.ToSimUnits(rightKneePoint.Y * scale));
-                rightKneeJoint.WorldAnchorB = rightKneePosition;
+                if (rightKneeJoint != null)
+                {
+                    rightKneeJoint.WorldAnchorB = rightKneePosition;
+                }
             }
 
 
             if (ballBody != null)
             {
-                if (Math.Abs(ballBody.Position.Y - prevBallLocation.Y) < 0.01)
+                //if (Math.Abs(ballBody.Position.Y - prevBallLocation.Y) < 0.01)
+                if (ballBody.Position.Y > worldSimHeight * 0.6)
                 {
                     // Ball static
                     staticBallTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-                    if (staticBallTime > 2)
+                    if (staticBallTime > 4)
                     {
                         staticBallTime = 0;
                         ballVisible = true;
                         resetBall();
                     }
-                    else
+                    else if (staticBallTime > 2)
                     {
                         ballVisible = (int)((staticBallTime / 0.2)) % 2 == 0;
                     }
@@ -895,9 +987,7 @@ namespace KinectBats
             // Draw RGB video
             if (colorVideo != null)
             {
-                var scale = ConvertUnits.ToDisplayUnits(worldSimWidth) / 640f;
-
-                spriteBatch.Draw(colorVideo, Vector2.Zero, null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.Draw(colorVideo, Vector2.Zero, null, Color.White, 0f, Vector2.Zero, videoScale, SpriteEffects.None, 0f);
             }
 
             for (int i = 0; i < bodies.Count; i++)
@@ -905,25 +995,33 @@ namespace KinectBats
                 Body b = bodies[i];
                 Texture2D t = textures[i];
                 Vector2 o = origins[i];
-                spriteBatch.Draw(t, ConvertUnits.ToDisplayUnits(b.Position), null, Color.White, b.Rotation, o, 1.0f, SpriteEffects.None, 0f);
+
+                Vector2 position = ConvertUnits.ToDisplayUnits(b.Position);
+                position.X *= objectScale.X;
+                position.Y *= objectScale.Y;
+
+                spriteBatch.Draw(t, position, null, Color.White, b.Rotation, o, objectScale, SpriteEffects.None, 0f);
             }
 
             if ((ballBody != null) && (ballVisible))
             {
-                spriteBatch.Draw(ballTexture, ConvertUnits.ToDisplayUnits(ballBody.Position), null, Color.White, ballBody.Rotation, ballOrigin, 1.0f, SpriteEffects.None, 0f);
+                Vector2 position = ConvertUnits.ToDisplayUnits(ballBody.Position);
+                position.X *= objectScale.X;
+                position.Y *= objectScale.Y;
+                spriteBatch.Draw(ballTexture, position, null, Color.White, ballBody.Rotation, ballOrigin, objectScale.Y, SpriteEffects.None, 0f);
             }
 
             font = Content.Load<SpriteFont>("batsfont");
-            spriteBatch.DrawString(font, leftScore.ToString(), new Vector2(30, 30), Color.Red);
-            spriteBatch.DrawString(font, rightScore.ToString(), new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth) - 80, 30), Color.Blue);
+            spriteBatch.DrawString(font, leftScore.ToString(), new Vector2(50, 50), Color.Red);
+            spriteBatch.DrawString(font, rightScore.ToString(), new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth) * objectScale.X - 100, 50), Color.Blue);
 
             if (leftScore >= targetScore)
             {
-                spriteBatch.DrawString(font, "Red player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2)), Color.Red);
+                spriteBatch.DrawString(font, "Red player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) * objectScale.X - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2) * objectScale.Y), Color.Red);
             }
             else if (rightScore >= targetScore)
             {
-                spriteBatch.DrawString(font, "Blue player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2)), Color.Blue);
+                spriteBatch.DrawString(font, "Blue player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) * objectScale.X - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2) * objectScale.Y), Color.Blue);
             }
 
             spriteBatch.End();
