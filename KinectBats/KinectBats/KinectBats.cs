@@ -21,6 +21,7 @@ using FarseerPhysics.Factories;
 using FarseerPhysics.Common;
 using FarseerPhysics.Common.PolygonManipulation;
 using FarseerPhysics.Dynamics.Joints;
+using FarseerPhysics.Dynamics.Contacts;
 using FarseerPhysics.Collision.Shapes;
 
 using Microsoft.Kinect;
@@ -57,8 +58,14 @@ namespace KinectBats
         Skeleton[] allSkeletons = new Skeleton[skeletonCount];
         CoordinateMapper cm;
 
-        int leftScore = 0;
-        int rightScore = 0;
+        int redScore = 0;
+        int blueScore = 0;
+        string lastHitPlayer = "";
+
+        int leftSkeletonIndex = 0;
+        int rightSkeletonIndex = 1;
+        float currentGameTime = 0;
+        float lastSwitchTime = 0;
 
         int targetScore = 6;
 
@@ -126,6 +133,7 @@ namespace KinectBats
         SoundEffect affirmativeSound;
         SoundEffect bogusSound;
         SoundEffect goalSound;
+        SoundEffect ownGoalSound;
         SoundEffect awaitingSound;
 
         public KinectBats()
@@ -187,20 +195,23 @@ namespace KinectBats
 
         public void resetGame()
         {
-            leftScore = 0;
-            rightScore = 0;
+            redScore = 0;
+            blueScore = 0;
 
             resetBall();
         }
 
         public void resetBall()
         {
+            lastHitPlayer = "";
+
             if (ballBody != null)
             {
                 world.RemoveBody(ballBody);
                 ballBody = null;
             }
 
+            /*
             //Create an array to hold the data from the texture
             uint[] data = new uint[ballTexture.Width * ballTexture.Height];
 
@@ -222,6 +233,11 @@ namespace KinectBats
             textureVertices.Scale(vertScale);
 
             //Create a single body with multiple fixtures
+            
+            */
+            ballShape = new CircleShape(ConvertUnits.ToSimUnits(ballTexture.Width) / 2, 1f);
+            ballShape.Position = new Vector2(ConvertUnits.ToSimUnits(ballTexture.Width) / 2, ConvertUnits.ToSimUnits(ballTexture.Width) / 2);
+
             ballBody = BodyFactory.CreateBody(world);
             ballBody.BodyType = BodyType.Dynamic;
             ballBody.Position = new Vector2(worldSimWidth / 2, worldSimWidth / 5);
@@ -229,6 +245,8 @@ namespace KinectBats
 
             ballBody.Restitution = 0.95f;
             ballBody.Friction = 0.95f;
+
+            ballBody.UserData = "ball";
         }
 
         private void startAudio(KinectSensor sensor)
@@ -257,10 +275,6 @@ namespace KinectBats
             //reduce background and ambient noise for better accuracy
             sensor.AudioSource.EchoCancellationMode = EchoCancellationMode.None;
             sensor.AudioSource.AutomaticGainControlEnabled = false;
-
-            
-
-            Console.WriteLine("GO");
         }
 
         private void RejectSpeech(RecognitionResult result)
@@ -464,7 +478,7 @@ namespace KinectBats
                         cm = new CoordinateMapper(kinect);
                         Debug.WriteLineIf(debugging, kinect.Status);
 
-                        //startAudio(kinect);
+                        startAudio(kinect);
                     }
                 }
             }
@@ -476,12 +490,26 @@ namespace KinectBats
             Console.WriteLine("Kinect started.");
         }
 
-        private void stopKinect()
+        private bool onCollision(Fixture fix1, Fixture fix2, Contact contact)
+        {
+            if ((fix1.Body.UserData == null) || (fix2.Body.UserData == null))
+            {
+                return true;
+            }
+
+            if ((((string)(fix1.Body.UserData) == "red") || ((string)(fix1.Body.UserData) == "blue")) && ((string)(fix2.Body.UserData) == "ball"))
+            {
+                lastHitPlayer = (string)(fix1.Body.UserData);
+            }
+            return true;
+        }
+
+        private void stopAllKinects()
         {
             Console.WriteLine("Stopping kinect...");
             if (kinect != null)
             {
-                kinect.Stop();
+                StopKinect(kinect);
             }
             Console.WriteLine("Kinect stopped.");
 
@@ -581,13 +609,19 @@ namespace KinectBats
 
         void kinectStatusChanged(object sender, StatusChangedEventArgs e)
         {
+            if (done)
+            {
+                return;
+            }
+
             if (e.Status == KinectStatus.Connected)
             {
                 startKinect();
             }
             else
             {
-                stopKinect();
+                Console.Write("Status change close...");
+                stopAllKinects();
             }
             
         }
@@ -680,7 +714,7 @@ namespace KinectBats
                 DepthImagePoint kneeDepthPoint = cm.MapSkeletonPointToDepthPoint(s.Joints[Microsoft.Kinect.JointType.KneeRight].Position, depthFormat);
 
 
-                if (index == 0)
+                if (index == leftSkeletonIndex)
                 {
                     if (handTracked)
                     {
@@ -696,7 +730,7 @@ namespace KinectBats
 
                     leftTracked = (handTracked || footTracked);
                 }
-                else {
+                else if (index == rightSkeletonIndex) {
                     if (handTracked)
                     {
                         rightHandPoint = cm.MapDepthPointToColorPoint(depthFormat, handDepthPoint, colorFormat);
@@ -752,10 +786,13 @@ namespace KinectBats
             // Left
             // ---------------------------------------------
             leftArm = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.1f, 0.5f, true, Color.Red);
+            leftArm.UserData = "red";
             leftHandJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
             leftHandJoint.LocalAnchorA = new Vector2(handOffset, 0f);
             leftElbowJoint = JointFactory.CreateFixedMouseJoint(world, leftArm, new Vector2(0f, 0f));
             leftElbowJoint.LocalAnchorA = new Vector2(elbowOffset, 0f);
+
+            leftArm.OnCollision += onCollision;
 
             /*
             leftFoot = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.2f, 0.5f, true, Color.Red);
@@ -768,10 +805,13 @@ namespace KinectBats
             // Right
             // ---------------------------------------------
             rightArm = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.9f, 0.5f, true, Color.Blue);
+            rightArm.UserData = "blue";
             rightHandJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
             rightHandJoint.LocalAnchorA = new Vector2(handOffset, 0f);
             rightElbowJoint = JointFactory.CreateFixedMouseJoint(world, rightArm, new Vector2(0f, 0f));
             rightElbowJoint.LocalAnchorA = new Vector2(elbowOffset, 0f);
+
+            rightArm.OnCollision += onCollision;
 
             /*
             rightFoot = addRectangleObject(paddleLength, 0.2f, worldSimWidth * 0.8f, 0.5f, true, Color.Blue);
@@ -802,7 +842,8 @@ namespace KinectBats
             //acknowledgeSound = Content.Load<SoundEffect>("communications_start_transmission");
             //affirmativeSound = Content.Load<SoundEffect>("affirmative");
             //bogusSound = Content.Load<SoundEffect>("donotaddressthisunitinthatmanner_clean");
-            //goalSound = Content.Load<SoundEffect>("consolewarning");
+            goalSound = Content.Load<SoundEffect>("crowd");
+            ownGoalSound = Content.Load<SoundEffect>("boo");
             //awaitingSound = Content.Load<SoundEffect>("awaiting");
 
             resetGame();
@@ -826,13 +867,14 @@ namespace KinectBats
         /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Update(GameTime gameTime)
         {
+            currentGameTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
             // Allows the game to exit
             if ((Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.Escape)) || (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed))
                 this.Exit();
 
             if (Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.Space))
             {
-                if ((leftScore >= targetScore) || (rightScore >= targetScore))
+                if ((redScore >= targetScore) || (blueScore >= targetScore))
                 {
                     resetGame();
                 }
@@ -840,6 +882,15 @@ namespace KinectBats
                 {
                     resetBall();
                 }
+            }
+
+            if (Keyboard.GetState(PlayerIndex.One).IsKeyDown(Keys.LeftControl) && (currentGameTime - lastSwitchTime > 0.5))
+            {
+                lastSwitchTime = currentGameTime;
+                Console.WriteLine("Control");
+                int tempSkeletonIndex = leftSkeletonIndex;
+                leftSkeletonIndex = rightSkeletonIndex;
+                rightSkeletonIndex = tempSkeletonIndex;
             }
 
 
@@ -926,14 +977,28 @@ namespace KinectBats
 
                 if (ballBody.Position.X < 0)
                 {
-                    rightScore += 1;
-                    //goalSound.Play();
+                    blueScore += 1;
+                    if (lastHitPlayer == "red")
+                    {
+                        ownGoalSound.Play();
+                    }
+                    else
+                    {
+                        goalSound.Play();
+                    }
                     resetBall();
                 }
                 else if (ballBody.Position.X > worldSimWidth)
                 {
-                    leftScore += 1;
-                    //goalSound.Play();
+                    redScore += 1;
+                    if (lastHitPlayer == "blue")
+                    {
+                        ownGoalSound.Play();
+                    } 
+                    else
+                    {
+                        goalSound.Play();
+                    }
                     resetBall();
                 }
 
@@ -943,7 +1008,7 @@ namespace KinectBats
 
 
 
-            if ((leftScore >= targetScore) || (rightScore >= targetScore))
+            if ((redScore >= targetScore) || (blueScore >= targetScore))
             {
                 // Someone won
                 if (ballBody != null)
@@ -1012,14 +1077,14 @@ namespace KinectBats
             }
 
             font = Content.Load<SpriteFont>("batsfont");
-            spriteBatch.DrawString(font, leftScore.ToString(), new Vector2(50, 50), Color.Red);
-            spriteBatch.DrawString(font, rightScore.ToString(), new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth) * objectScale.X - 100, 50), Color.Blue);
+            spriteBatch.DrawString(font, redScore.ToString(), new Vector2(50, 50), Color.Red);
+            spriteBatch.DrawString(font, blueScore.ToString(), new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth) * objectScale.X - 100, 50), Color.Blue);
 
-            if (leftScore >= targetScore)
+            if (redScore >= targetScore)
             {
                 spriteBatch.DrawString(font, "Red player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) * objectScale.X - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2) * objectScale.Y), Color.Red);
             }
-            else if (rightScore >= targetScore)
+            else if (blueScore >= targetScore)
             {
                 spriteBatch.DrawString(font, "Blue player won!", new Vector2(ConvertUnits.ToDisplayUnits(worldSimWidth / 2) * objectScale.X - 300, ConvertUnits.ToDisplayUnits(worldSimHeight / 2) * objectScale.Y), Color.Blue);
             }
@@ -1040,7 +1105,7 @@ namespace KinectBats
             {
                 sensor.SkeletonStream.Disable();
             }
-
+            
             if ((sensor.ColorStream != null) && (sensor.ColorStream.IsEnabled))
             {
                 sensor.ColorStream.Disable();
@@ -1054,6 +1119,7 @@ namespace KinectBats
             // detach event handlers
             sensor.AllFramesReady -= this.kinect_AllFramesReady;
 
+            
             try
             {
                 sensor.Stop();
@@ -1068,7 +1134,8 @@ namespace KinectBats
         {
             done = true;
 
-            StopKinect(kinect);
+            Console.WriteLine("On exit close.");
+            stopAllKinects();
 
             base.OnExiting(sender, args);
         }
